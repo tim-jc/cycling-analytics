@@ -698,26 +698,6 @@ draw_ytd_curve <- function(metric_to_plot, ytd_stats) {
   return(ytd_curve)
 }
 
-get_ytd_values <- function(metric_to_display, ytd_stats) {
-  vals <- ytd_stats %>%
-    filter(ytd_val) %>%
-    select(-c(yr_day, ytd_val, yr, start_date_local)) %>%
-    pivot_longer(-yr_lbl, names_to = "metric") %>%
-    filter(str_detect(metric, metric_to_display)) %>%
-    mutate(
-      value = round(value, 1),
-      yr_lbl = if_else(
-        str_detect(metric, "^yr_"),
-        str_replace(yr_lbl, "td", "r"),
-        yr_lbl
-      )
-    ) %>%
-    select(-metric) %>%
-    deframe()
-
-  return(vals)
-}
-
 get_ytd_valuebox <- function(
   metric_to_display,
   ytd_stats

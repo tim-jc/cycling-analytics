@@ -19,9 +19,9 @@ get_streams <- function() {
     "SELECT
     a.activity_id,
     a.start_date_local,
-    a.distance, 
-    a.moving_time, 
-    a.kilojoules,
+    a.distance_metres, 
+    a.moving_time_seconds, 
+    a.energy_kilojoules,
     s.latitude,
     s.longitude
    FROM
@@ -56,25 +56,25 @@ build_ytd_stats <- function(activity_streams) {
     select(
       activity_id,
       start_date_local,
-      distance,
-      moving_time,
-      kilojoules,
+      distance_metres,
+      moving_time_seconds,
+      energy_kilojoules,
     ) |>
     distinct() |>
     mutate(
       yr = year(start_date_local),
       yr_day = yday(start_date_local),
-      distance_mi = distance * 0.000621371,
-      ton = distance_mi >= 100,
-      moving_time_hr = moving_time / 3600
+      distance_mi = distance_metres * 0.000621371,
+      is_ton = distance_mi >= 100,
+      moving_time_hr = moving_time_seconds / 3600
     ) |>
     group_by(yr) |>
     arrange(start_date_local) |>
     mutate(
       ytd_distance_mi = cumsum(distance_mi),
-      ytd_tons = cumsum(ton),
+      ytd_tons = cumsum(is_ton),
       ytd_time_hr = cumsum(moving_time_hr),
-      ytd_energy_kcal = cumsum(replace_na(kilojoules, 0)),
+      ytd_energy_kcal = cumsum(replace_na(energy_kilojoules, 0)),
       ytd_longest_ride = max(
         distance_mi[yr_day <= yday(Sys.Date())],
         na.rm = T
@@ -82,10 +82,10 @@ build_ytd_stats <- function(activity_streams) {
       yr_longest_ride = max(distance_mi, na.rm = T)
     ) |>
     select(
-      strava_id,
+      activity_id,
       distance_mi,
       start_date_local,
-      ton,
+      is_ton,
       matches("^yr|^ytd")
     ) |>
     mutate(start_date_local = as.Date(start_date_local)) |>
@@ -94,13 +94,13 @@ build_ytd_stats <- function(activity_streams) {
       ytd_distance_mi = max(ytd_distance_mi),
       ytd_predicted_distance_mi = (ytd_distance_mi / yday(Sys.Date())) * 365,
       ytd_tons = max(ytd_tons),
-      ton_day = any(ton),
+      is_ton_day = any(is_ton),
       ytd_time_hr = max(ytd_time_hr),
       ytd_energy_kcal = max(ytd_energy_kcal),
       ytd_longest_ride = max(ytd_longest_ride, na.rm = T),
       yr_longest_ride = max(yr_longest_ride, na.rm = T),
-      activity_day = TRUE,
-      activity_id = strava_id[distance_mi == max(distance_mi)],
+      is_activity_day = TRUE,
+      activity_id = activity_id[distance_mi == max(distance_mi)],
       .groups = "drop"
     ) |>
     group_by(yr) |>
@@ -120,16 +120,38 @@ build_ytd_stats <- function(activity_streams) {
     mutate(
       yr = year(start_date_local),
       yr_day = yday(start_date_local),
-      activity_day = if_else(is.na(activity_day), F, activity_day),
-      ton_day = if_else(is.na(ton_day), F, ton_day)
+      is_activity_day = if_else(is.na(is_activity_day), F, is_activity_day),
+      is_ton_day = if_else(is.na(is_ton_day), F, is_ton_day)
     ) |>
     arrange(yr, yr_day) |>
     filter(!(yr == year(Sys.Date()) & yr_day > yday(Sys.Date()))) |>
-    fill(names(.)[names(.) != "activity_ids"], .direction = "down") |>
-    replace(is.na(.), 0) %>% # in case no riding on first day of year.
+    fill(-activity_id, .direction = "down") |>
+    mutate(
+      across(where(is.numeric), ~ replace_na(.x, 0)),
+      across(where(is.logical), ~ replace_na(.x, FALSE))
+    ) |> # in case no riding on first day of year.
     mutate(
       ytd_val = yr_day == yday(Sys.Date()),
       yr_lbl = if_else(yr == year(Sys.Date()), "ytd", "pytd")
     ) |>
     ungroup()
+}
+
+
+get_ytd_values <- function(metric_to_display, ytd_stats) {
+  test <- ytd_stats |>
+    filter(ytd_val) |>
+    select(yr_lbl, matches("^ytd"), -ytd_val) |>
+    pivot_longer(-yr_lbl, names_to = "metric") |>
+    filter(str_detect(metric, metric_to_display)) |>
+    mutate(
+      value = round(value, 1),
+      yr_lbl = if_else(
+        str_detect(metric, "^yr_"),
+        str_replace(yr_lbl, "td", "r"),
+        yr_lbl
+      )
+    ) |>
+    select(-metric) |>
+    deframe()
 }
