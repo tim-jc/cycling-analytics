@@ -52,7 +52,7 @@ get_tbr_streams <- function() {
 
 # Assemble YTD stats
 build_ytd_stats <- function(activity_streams) {
-  activities <- activity_streams |>
+  test <- activity_streams |>
     select(
       activity_id,
       start_date_local,
@@ -137,9 +137,43 @@ build_ytd_stats <- function(activity_streams) {
     ungroup()
 }
 
+get_position_extremities <- function(ytd_streams) {
+  # Manage the edge case early in the year when no outside rides logged yet
+  if (nrow(ytd_streams) > 0) {
+    position_extremities <- ytd_streams |>
+      mutate(
+        extremity = case_when(
+          latitude == max(latitude, na.rm = T) ~ "N",
+          latitude == min(latitude, na.rm = T) ~ "S",
+          longitude == max(longitude, na.rm = T) ~ "E",
+          longitude == min(longitude, na.rm = T) ~ "W"
+        )
+      ) |>
+      filter(!is.na(extremity)) |>
+      tidygeocoder::reverse_geocode(
+        long = longitude,
+        lat = latitude,
+        full_results = T
+      ) |>
+      bind_rows(tibble(
+        village = NA_character_, # ensure the village and suburb columns are present
+        suburb = NA_character_
+      ))
+  } else {
+    position_extremities <- tibble(extremity = c("N", "S", "E", "W")) |>
+      mutate(
+        latitude = NA,
+        longitude = NA,
+        village = "No outside rides YTD",
+        suburb = "No outside rides YTD"
+      )
+  }
+  return(position_extremities)
+}
+
 
 get_ytd_values <- function(metric_to_display, ytd_stats) {
-  test <- ytd_stats |>
+  ytd_stats |>
     filter(ytd_val) |>
     select(yr_lbl, matches("^ytd"), -ytd_val) |>
     pivot_longer(-yr_lbl, names_to = "metric") |>
@@ -154,4 +188,182 @@ get_ytd_values <- function(metric_to_display, ytd_stats) {
     ) |>
     select(-metric) |>
     deframe()
+}
+
+get_ytd_valuebox <- function(
+  metric_to_display,
+  ytd_stats
+) {
+  vals <- get_ytd_values(
+    metric_to_display,
+    ytd_stats
+  )
+
+  icon_str <- case_when(
+    vals["ytd"] > vals["pytd"] ~ "fa-arrow-up",
+    vals["ytd"] < vals["pytd"] ~ "fa-arrow-down",
+    vals["ytd"] == vals["pytd"] ~ "fa-arrows-left-right"
+  )
+
+  valueBox(
+    vals["ytd"],
+    icon = icon_str,
+    color = "#EDF0F1"
+  )
+}
+
+draw_ytd_curve <- function(metric_to_plot, ytd_stats) {
+  ytd_tbl <- ytd_stats |>
+    pivot_longer(c(matches("^ytd"), -ytd_val)) |>
+    filter(name == metric_to_plot) |>
+    mutate(
+      hover_lbl = str_glue(
+        "{start_date_local}
+                                 N = {round(value, 1)}"
+      ),
+      activity_url = str_glue("https://www.strava.com/activities/{activity_id}")
+    )
+
+  ytd_curve <- ytd_tbl |>
+    ggplot(aes(x = yr_day, y = value, colour = yr_lbl)) +
+    geom_step(alpha = 0.5) +
+    theme_minimal() +
+    scale_colour_manual(values = c("pytd" = "grey85", "ytd" = "#0C2340")) +
+    theme(legend.position = "none", axis.text.x = element_blank()) +
+    labs(x = "", y = "")
+
+  if (metric_to_plot == "ytd_tons") {
+    ytd_curve <- ytd_curve +
+      geom_point(
+        data = ytd_tbl |> filter(is_ton_day),
+        aes(text = hover_lbl, customdata = activity_url),
+        size = 1
+      )
+  } else {
+    predicted_miles <- ytd_tbl |>
+      mutate(value = (value / yr_day) * 365) |>
+      select(yr, yr_lbl, yr_day, value) |>
+      group_by(yr) |>
+      filter(yr_day == max(yr_day) | yr_day == 1) |>
+      mutate(
+        value = if_else(yr_day == 1, 0, value),
+        yr_day = if_else(yr_day > 1, 365, yr_day)
+      ) |>
+      ungroup()
+
+    ytd_curve <- ytd_curve +
+      geom_line(data = predicted_miles, linetype = "dashed", alpha = 0.5) +
+      geom_point(
+        data = ytd_tbl |> filter(ytd_val),
+        aes(text = hover_lbl, customdata = activity_url),
+        size = 1
+      )
+  }
+
+  ytd_curve <- plotly::ggplotly(ytd_curve, tooltip = "text")
+
+  # Render custom JS
+  ytd_curve <- ytd_curve |>
+    htmlwidgets::onRender(
+      "
+       function(el, x) {
+       
+         el.on('plotly_click', function(data) {
+           // retrieve url from the customdata field passed to ggplot
+           var url = data.points[0].customdata;
+           // open this url in the same window
+           window.open(url, \"_blank\");
+         });
+       
+       }"
+    )
+
+  return(ytd_curve)
+}
+
+
+get_coord_valuebox <- function(pos_needed) {
+  positions <- position_extremities %>%
+    filter(extremity == pos_needed) %>%
+    mutate(
+      city_name = case_when(
+        !is.na(hamlet) ~ hamlet,
+        !is.na(village) ~ village,
+        !is.na(town) ~ town,
+        !is.na(neighbourhood) ~ neighbourhood,
+        !is.na(suburb) ~ suburb,
+        !is.na(city) ~ city
+      )
+    ) %>%
+    slice_head(n = 1)
+
+  if (pos_needed == "N") {
+    icon_str <- "fa-arrow-up"
+  }
+
+  if (pos_needed == "S") {
+    icon_str <- "fa-arrow-down"
+  }
+
+  if (pos_needed == "E") {
+    icon_str <- "fa-arrow-right"
+  }
+
+  if (pos_needed == "W") {
+    icon_str <- "fa-arrow-left"
+  }
+
+  link_str <- str_glue(
+    "https://www.google.com/maps/place/{positions$lat}N+{if_else(positions$lng>0,str_c(positions$lng,\"E\"),str_c(0 - positions$lng,\"W\"))}"
+  )
+  vb <- valueBox(
+    positions$city_name,
+    icon = icon_str,
+    color = "#EDF0F1",
+    href = link_str
+  )
+  return(vb)
+}
+
+add_track <- function(
+  leaflet_obj,
+  position_tbl,
+  lat_lng_names = c("latitude", "longitude"),
+  track_colour = "#0C2340"
+) {
+  latitude <- position_tbl[[lat_lng_names[1]]]
+  longitude <- position_tbl[[lat_lng_names[2]]]
+
+  leaflet_obj <- leaflet::addPolylines(
+    map = leaflet_obj,
+    lat = latitude,
+    lng = longitude,
+    opacity = 0.5,
+    weight = 2,
+    color = track_colour
+  )
+
+  return(leaflet_obj)
+}
+
+draw_map <- function(streams_tbl) {
+  map <- leaflet() %>%
+    addTiles(
+      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}.png',
+      attribution = paste(
+        '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+        '&copy; <a href="https://cartodb.com/attributions">CartoDB</a>'
+      )
+    )
+
+  tracks <- split(streams_tbl, streams_tbl$activity_id)
+
+  map <-
+    tracks |>
+    reduce(
+      \(map, track) map |> add_track(track),
+      .init = map
+    )
+
+  return(map)
 }

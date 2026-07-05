@@ -109,3 +109,59 @@ get_next_scraper_run <- function() {
 
   return(next_run)
 }
+
+send_ntfy_message <- function(
+  msg_body,
+  msg_url = "ntfy.sh/strava_stats_dashboard",
+  msg_title = "Strava dashboard updated",
+  msg_tags = "bike,chart_with_upwards_trend",
+  msg_priority = "default",
+  msg_link_url = "https://tim-jc.github.io/strava_scraper"
+) {
+  # Allowed priorities
+  allowed_priorites <- c("urgent", "high", "default", "low", "min")
+
+  if (!msg_priority %in% allowed_priorites) {
+    stop(str_glue(
+      "Invalid priority level supplied; allowed values are '{str_flatten(allowed_priorites, collapse = \"', '\")}'"
+    ))
+  }
+
+  # tags - if they match an emoji short code they'll be rendered as such, otherwise will appear as string
+  # tags should be supplied as a single string value with commas separating tags
+  response <- httr::POST(
+    url = msg_url,
+    body = msg_body,
+    httr::add_headers(c(
+      "Title" = msg_title,
+      "Tags" = msg_tags,
+      "Priority" = msg_priority,
+      "Click" = msg_link_url
+    ))
+  )
+
+  return(response)
+}
+
+publish_to_git <- function(
+  git_path = here::here(),
+  file_to_publish = "docs/index.html",
+  commit_msg = "auto commit from cron / Rscript"
+) {
+  git_cmd <- stringr::str_glue(
+    "
+    cd '{git_path}' &&
+    git add '{file_to_publish}' &&
+    git commit -m '{commit_msg}' &&
+    git push origin main
+    "
+  )
+
+  result <- system(
+    git_cmd,
+    intern = TRUE,
+    ignore.stderr = FALSE
+  )
+
+  print(result)
+}

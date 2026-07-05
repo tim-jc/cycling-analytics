@@ -14,63 +14,19 @@ libs <- c("flexdashboard","tidyverse","plotly","leaflet","leaflet.extras","lubri
 purrr::walk(libs, ~library(.,character.only = T))
 
 source("db/db.R")
+source("dashboard_functions.R")
 
 con <- connect_db()
 
-#source("scraper_functions.R")
-#source("runtime_helpers.R")
+activity_streams <- get_streams()
 
-#only add fields to the data retrieval as they are confirmed needed
-ytd_activity_streams <- dbGetQuery(
-  con,
-  "SELECT
-    a.activity_id,
-    a.start_date_local,
-    s.latitude,
-    s.longitude
-   FROM
-    cycling_platform_silver.activities a
-   INNER JOIN cycling_platform_silver.activity_streams s
-    ON a.activity_id = s.activity_id
-   WHERE
-    a.sport_type IN ('Ride','VirtualRide')
-    AND YEAR(a.start_date_local) = YEAR(NOW())"
-)
+tbr_streams <- get_tbr_streams()
 
-tbr_activity_streams <- dbGetQuery(
-  con,
-  "SELECT
-    a.activity_id
-   FROM
-    cycling_platform_silver.activities a
-   INNER JOIN cycling_platform_silver.activity_streams s
-    ON a.activity_id = s.activity_id
-   WHERE
-    a.activity_name like '%tbr%'"
-)
+ytd_stats <- build_ytd_stats(activity_streams)
 
-# Manage the edge case early in the year when no outside rides logged yet
-if(nrow(ytd_activity_streams) > 0) {
+ytd_streams <- activity_streams |> filter(year(start_date_local) = year(Sys.Date()))
 
-  position_extremities <- ytd_activity_streams |> 
-    mutate(extremity = case_when(latitude == max(latitude, na.rm = T) ~ "N",
-                                 latitude == min(latitude, na.rm = T) ~ "S",
-                                 longitude == max(longitude, na.rm = T) ~ "E",
-                                 longitude == min(longitude, na.rm = T) ~ "W")) |> 
-    filter(!is.na(extremity)) |> 
-    tidygeocoder::reverse_geocode(long = longitude, lat = latitude, full_results = T) |> 
-    bind_rows(tibble(village = NA_character_, # ensure the village and suburb columns are present
-                     suburb = NA_character_))
-    
-} else {
-  
-  position_extremities <- tibble(extremity = c("N","S","E","W")) |> 
-    mutate(latitude = NA,
-           longitude = NA,
-           village = "No outside rides YTD",
-           suburb = "No outside rides YTD")
-  
-}
+position_extremities <- get_position_extremities(ytd_streams)
 
 ```
 
@@ -177,7 +133,7 @@ Row
 ### `r str_glue("{year(Sys.Date())} tracks")`
 
 ```{r}
-draw_ytd_map(ytd_streams)
+draw_map(ytd_streams)
 ```
 
 
