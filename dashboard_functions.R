@@ -2,10 +2,10 @@
 
 # Peaks units / conversions
 peaks_units <- tribble(
-  ~metric           , ~display_name , ~multiplier , ~units  ,
-  "cadence"         , "cadence"     , 1           , "rpm"   ,
-  "watts"           , "power"       , 1           , "w"     ,
-  "heartrate"       , "heart rate"  , 1           , "bpm"   ,
+  ~metric_name      , ~display_name , ~multiplier , ~units  ,
+  "cadence_rpm"     , "cadence"     , 1           , "rpm"   ,
+  "watts"           , "power"       , 1           , "W"     ,
+  "heartrate_bpm"   , "heart rate"  , 1           , "bpm"   ,
   "velocity_smooth" , "speed"       , 2.23694     , "mph"   ,
   "distance"        , "distance"    , 0.000621371 , "miles"
 )
@@ -18,6 +18,8 @@ get_streams <- function() {
     con,
     "SELECT
     a.activity_id,
+    a.is_trainer,
+    a.sport_type,
     a.start_date_local,
     a.distance_metres, 
     a.moving_time_seconds, 
@@ -39,12 +41,19 @@ get_tbr_streams <- function() {
   dbGetQuery(
     con,
     "SELECT
-      a.activity_id
-     FROM
+      a.activity_id,
+      a.is_trainer,
+      a.sport_type,
+      a.start_date_local,
+      a.distance_metres, 
+      a.moving_time_seconds, 
+      s.latitude,
+      s.longitude
+    FROM
       cycling_platform_silver.activities a
-     INNER JOIN cycling_platform_silver.activity_streams s
+    INNER JOIN cycling_platform_silver.activity_streams s
       ON a.activity_id = s.activity_id
-     WHERE
+    WHERE
       a.activity_name like '%tbr%'"
   )
 }
@@ -138,6 +147,8 @@ build_ytd_stats <- function(activity_streams) {
 }
 
 get_position_extremities <- function(ytd_streams) {
+  ytd_streams <- ytd_streams |> filter(sport_type == "Ride")
+
   # Manage the edge case early in the year when no outside rides logged yet
   if (nrow(ytd_streams) > 0) {
     position_extremities <- ytd_streams |>
@@ -157,7 +168,8 @@ get_position_extremities <- function(ytd_streams) {
       ) |>
       bind_rows(tibble(
         village = NA_character_, # ensure the village and suburb columns are present
-        suburb = NA_character_
+        suburb = NA_character_,
+        neighbourhood = NA_character_
       ))
   } else {
     position_extremities <- tibble(extremity = c("N", "S", "E", "W")) |>
@@ -175,7 +187,7 @@ get_position_extremities <- function(ytd_streams) {
 get_ytd_values <- function(metric_to_display, ytd_stats) {
   ytd_stats |>
     filter(ytd_val) |>
-    select(yr_lbl, matches("^ytd"), -ytd_val) |>
+    select(yr_lbl, matches("^ytd"), matches(metric_to_display), -ytd_val) |>
     pivot_longer(-yr_lbl, names_to = "metric") |>
     filter(str_detect(metric, metric_to_display)) |>
     mutate(
@@ -283,8 +295,8 @@ draw_ytd_curve <- function(metric_to_plot, ytd_stats) {
 
 
 get_coord_valuebox <- function(pos_needed) {
-  positions <- position_extremities %>%
-    filter(extremity == pos_needed) %>%
+  positions <- position_extremities |>
+    filter(extremity == pos_needed) |>
     mutate(
       city_name = case_when(
         !is.na(hamlet) ~ hamlet,
@@ -294,7 +306,7 @@ get_coord_valuebox <- function(pos_needed) {
         !is.na(suburb) ~ suburb,
         !is.na(city) ~ city
       )
-    ) %>%
+    ) |>
     slice_head(n = 1)
 
   if (pos_needed == "N") {
@@ -347,7 +359,8 @@ add_track <- function(
 }
 
 draw_map <- function(streams_tbl) {
-  map <- leaflet() %>%
+  streams_tbl <- streams_tbl |> filter(sport_type == "Ride")
+  map <- leaflet() |>
     addTiles(
       'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}.png',
       attribution = paste(
@@ -366,4 +379,111 @@ draw_map <- function(streams_tbl) {
     )
 
   return(map)
+}
+
+
+draw_critical_metric_curve <- function(metric_to_plot, con) {
+  if (!metric_to_plot %in% peaks_units$display_name) {
+    stop(str_glue(
+      "Invalid metric supplied; allowed values are '{str_flatten(peaks_units$display_name, collapse = \"', '\")}'"
+    ))
+  }
+
+  units <- peaks_units |> filter(display_name == metric_to_plot)
+
+  # Get all time peaks
+  # Calculate best ever, best last year, best this year
+  query <- "
+        SELECT
+          abe.activity_id,
+          a.start_date_local,
+          a.sport_type,
+          abe.metric_name,
+          abe.peak_value,
+          abe.duration_seconds,
+          'All time' as peak_period
+        FROM
+          cycling_platform_gold.activity_best_efforts abe
+        INNER JOIN
+          cycling_platform_silver.activities a
+        ON abe.activity_id = a.activity_id
+        WHERE metric_name = ?
+          "
+
+  peaks_all_time <- dbGetQuery(con, query, params = list(units$metric_name))
+
+  peaks_last_year <- peaks_all_time |>
+    filter(year(start_date_local) == year(Sys.Date() - years(1))) |>
+    mutate(peak_period = "Last year")
+
+  peaks_cur_year <- peaks_all_time |>
+    filter(year(start_date_local) == year(Sys.Date())) |>
+    mutate(peak_period = "Current year")
+
+  best_peaks <- bind_rows(peaks_all_time, peaks_last_year, peaks_cur_year) |>
+    filter(!(sport_type == "VirtualRide" & metric_name == "velocity_smooth")) |> # exclude speed metrics from virtual rides
+    group_by(peak_period, metric_name, duration_seconds) |>
+    slice_max(peak_value, n = 3, with_ties = F) |>
+    mutate(
+      rank = rank(-peak_value),
+      peak_value = peak_value * local(units$multiplier)
+    ) |>
+    left_join(peaks_units, by = "metric_name") |>
+    mutate(
+      duration_seconds_fct = if_else(
+        duration_seconds < 60,
+        str_c(duration_seconds, 's'),
+        str_c(duration_seconds / 60, 'min')
+      ),
+      duration_seconds_fct = factor(duration_seconds_fct),
+      duration_seconds_fct = fct_reorder(
+        duration_seconds_fct,
+        duration_seconds
+      ),
+      activity_url = str_glue(
+        "https://www.strava.com/activities/{activity_id}"
+      ),
+      hover_lbl = str_glue(
+        "Best {duration_seconds_fct} {display_name} - {peak_period}
+                              {round(peak_value, digits = 1)}{units}"
+      )
+    )
+
+  peaks_plot <- best_peaks %>%
+    filter(display_name == metric_to_plot, rank == 1) %>%
+    ggplot(aes(
+      x = duration_seconds_fct,
+      y = peak_value,
+      colour = peak_period,
+      fill = peak_period,
+      group = peak_period
+    )) +
+    geom_point(aes(text = hover_lbl, customdata = activity_url)) +
+    geom_area(position = "identity", alpha = 0.2) +
+    theme_minimal() +
+    theme(legend.position = "none") +
+    labs(
+      x = "",
+      y = str_glue("{str_to_title(metric_to_plot)} /{local(units$units)}\n")
+    )
+
+  peaks_plot <- plotly::ggplotly(peaks_plot, tooltip = "text")
+
+  # Render custom JS
+  peaks_plot <- peaks_plot %>%
+    htmlwidgets::onRender(
+      "
+       function(el, x) {
+       
+         el.on('plotly_click', function(data) {
+           // retrieve url from the customdata field passed to ggplot
+           var url = data.points[0].customdata;
+           // open this url in the same window
+           window.open(url, \"_blank\");
+         });
+       
+       }"
+    )
+
+  return(peaks_plot)
 }

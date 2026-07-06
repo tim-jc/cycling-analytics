@@ -13,18 +13,19 @@ output:
 libs <- c("flexdashboard","tidyverse","plotly","leaflet","leaflet.extras","lubridate","mapdata")
 purrr::walk(libs, ~library(.,character.only = T))
 
-source("db/db.R")
-source("dashboard_functions.R")
-
 con <- connect_db()
 
 activity_streams <- get_streams()
 
 tbr_streams <- get_tbr_streams()
 
+tbr_activities <- tbr_streams |> 
+  select(activity_id:moving_time_seconds) |> 
+  distinct()
+
 ytd_stats <- build_ytd_stats(activity_streams)
 
-ytd_streams <- activity_streams |> filter(year(start_date_local) = year(Sys.Date()))
+ytd_streams <- activity_streams |> filter(year(start_date_local) == year(Sys.Date()))
 
 position_extremities <- get_position_extremities(ytd_streams)
 
@@ -136,31 +137,6 @@ Row
 draw_map(ytd_streams)
 ```
 
-
-Peak Performances
-===================================== 
-
-Row
------------------------------------------------------------------------
-
-### Power
-
-```{r}
-draw_critical_metric_curve("power", con)
-```
-
-### Cadence
-
-```{r}
-draw_critical_metric_curve("cadence", con)
-```
-
-### Heart Rate
-
-```{r}
-draw_critical_metric_curve("heart rate", con)
-```
-
 tbr
 ===================================== 
 
@@ -177,14 +153,14 @@ valueBox(nrow(tbr_activities), color = "#EDF0F1")
 
 ```{r}
 
-peaks_units |> filter(metric == "distance") |> mutate(value = sum(tbr_activities$distance) * multiplier, value = str_glue("{round(value, digits = 1)} {units}")) |> pull(value) |> valueBox(color = "#EDF0F1")
+peaks_units |> filter(metric_name == "distance") |> mutate(value = sum(tbr_activities$distance) * multiplier, value = str_glue("{round(value, digits = 1)} {units}")) |> pull(value) |> valueBox(color = "#EDF0F1")
 
 ```
 
 ### Longest tbr ride
 
 ```{r}
-peaks_units |> filter(metric == "distance") |> mutate(value = max(tbr_activities$distance) * multiplier, value = str_glue("{round(value, digits = 1)} {units}")) |> pull(value) |> valueBox(color = "#EDF0F1")
+peaks_units |> filter(metric_name == "distance") |> mutate(value = max(tbr_activities$distance) * multiplier, value = str_glue("{round(value, digits = 1)} {units}")) |> pull(value) |> valueBox(color = "#EDF0F1")
 ```
 
 Row
