@@ -15,9 +15,9 @@ purrr::walk(libs, ~library(.,character.only = T))
 
 con <- connect_db()
 
-activity_streams <- get_streams()
+activity_streams <- get_streams(con)
 
-tbr_streams <- get_tbr_streams()
+tbr_streams <- get_tbr_streams(con)
 
 tbr_activities <- tbr_streams |> 
   select(activity_id:moving_time_seconds) |> 
@@ -107,25 +107,25 @@ Row
 ### Most Northerly
 
 ```{r}
-get_coord_valuebox("N")
+get_coord_valuebox("N", position_extremities)
 ```
 
 ### Most Southerly
 
 ```{r}
-get_coord_valuebox("S")
+get_coord_valuebox("S", position_extremities)
 ```
 
 ### Most Easterly
 
 ```{r}
-get_coord_valuebox("E")
+get_coord_valuebox("E", position_extremities)
 ```
 
 ### Most Westerly
 
 ```{r}
-get_coord_valuebox("W")
+get_coord_valuebox("W", position_extremities)
 ```
 
 Row
@@ -153,14 +153,14 @@ valueBox(nrow(tbr_activities), color = "#EDF0F1")
 
 ```{r}
 
-peaks_units |> filter(metric_name == "distance") |> mutate(value = sum(tbr_activities$distance) * multiplier, value = str_glue("{round(value, digits = 1)} {units}")) |> pull(value) |> valueBox(color = "#EDF0F1")
+peaks_units |> filter(metric_name == "distance") |> mutate(value = sum(tbr_activities$distance_metres) * multiplier, value = str_glue("{round(value, digits = 1)} {units}")) |> pull(value) |> valueBox(color = "#EDF0F1")
 
 ```
 
 ### Longest tbr ride
 
 ```{r}
-peaks_units |> filter(metric_name == "distance") |> mutate(value = max(tbr_activities$distance) * multiplier, value = str_glue("{round(value, digits = 1)} {units}")) |> pull(value) |> valueBox(color = "#EDF0F1")
+peaks_units |> filter(metric_name == "distance") |> mutate(value = max(tbr_activities$distance_metres) * multiplier, value = str_glue("{round(value, digits = 1)} {units}")) |> pull(value) |> valueBox(color = "#EDF0F1")
 ```
 
 Row

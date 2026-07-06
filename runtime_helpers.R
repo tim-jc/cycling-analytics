@@ -14,10 +14,10 @@ log_message <- function(msg) {
 }
 
 install_cron_job <- function() {
-  schedule <- Sys.getenv("SCRAPER_SCHEDULE")
+  schedule <- Sys.getenv("DASHBOARD_REFRESH_SCHEDULE")
 
   if (schedule == "") {
-    stop("SCRAPER_SCHEDULE environment variable not set.")
+    stop("DASHBOARD_REFRESH_SCHEDULE environment variable not set.")
   }
 
   scraper_path <- normalizePath(
@@ -35,8 +35,8 @@ install_cron_job <- function() {
     error = function(e) character(0)
   )
 
-  start_string <- "# >>> STRAVA_SCRAPER_START >>>"
-  end_string <- "# <<< STRAVA_SCRAPER_END <<<"
+  start_string <- "# >>> CYCLING_ANALYTICS_START >>>"
+  end_string <- "# <<< CYCLING_ANALYTICS_END <<<"
 
   remove_start <- match(start_string, existing)
   remove_end <- match(end_string, existing)
@@ -56,7 +56,7 @@ install_cron_job <- function() {
   cron_block <- c(
     "",
     start_string,
-    "## desc: Strava scraper update and dashboard refresh",
+    "## desc: Cycling Analytics dashboard refresh",
     glue::glue(
       "{schedule} /usr/local/bin/Rscript '{scraper_path}' cron >> '{log_path}' 2>&1"
     ),
@@ -88,11 +88,9 @@ install_cron_job <- function() {
 }
 
 get_next_scraper_run <- function() {
-  return(Sys.time())
-
   tz <- Sys.timezone()
 
-  schedule <- Sys.getenv("SCRAPER_SCHEDULE")
+  schedule <- Sys.getenv("DASHBOARD_REFRESH_SCHEDULE")
 
   schedule <- str_split_1(schedule, pattern = " ")
 
@@ -114,11 +112,11 @@ get_next_scraper_run <- function() {
 
 send_ntfy_message <- function(
   msg_body,
-  msg_url = "ntfy.sh/strava_stats_dashboard",
-  msg_title = "Strava dashboard updated",
+  msg_url = "ntfy.sh/cycling-analytics",
+  msg_title = "Dashboard updated",
   msg_tags = "bike,chart_with_upwards_trend",
   msg_priority = "default",
-  msg_link_url = "https://tim-jc.github.io/strava_scraper"
+  msg_link_url = "https://tim-jc.github.io/cycling-analytics"
 ) {
   # Allowed priorities
   allowed_priorites <- c("urgent", "high", "default", "low", "min")
@@ -169,7 +167,7 @@ publish_to_git <- function(
 }
 
 check_cron_schedule <- function() {
-  environ_schedule <- Sys.getenv("SCRAPER_SCHEDULE")
+  environ_schedule <- Sys.getenv("DASHBOARD_REFRESH_SCHEDULE")
 
   cron <- tryCatch(
     system("crontab -l", intern = TRUE),
@@ -177,7 +175,7 @@ check_cron_schedule <- function() {
   )
 
   start_index <- match(
-    "# >>> STRAVA_SCRAPER_START >>>",
+    "# >>> CYCLING_ANALYTICS_START >>>",
     cron
   )
 

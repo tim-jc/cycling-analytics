@@ -1,7 +1,7 @@
 # Define values -----------------------------------------------------------
 
 # Peaks units / conversions
-peaks_units <- tribble(
+peaks_units <- tibble::tribble(
   ~metric_name      , ~display_name , ~multiplier , ~units  ,
   "cadence_rpm"     , "cadence"     , 1           , "rpm"   ,
   "watts"           , "power"       , 1           , "W"     ,
@@ -13,9 +13,9 @@ peaks_units <- tribble(
 # Functions
 
 # Get streams
-get_streams <- function() {
+get_streams <- function(con) {
   dbGetQuery(
-    con,
+    conn = con,
     "SELECT
     a.activity_id,
     a.is_trainer,
@@ -37,9 +37,9 @@ get_streams <- function() {
 }
 
 # tbr streams
-get_tbr_streams <- function() {
+get_tbr_streams <- function(con) {
   dbGetQuery(
-    con,
+    conn = con,
     "SELECT
       a.activity_id,
       a.is_trainer,
@@ -167,17 +167,24 @@ get_position_extremities <- function(ytd_streams) {
         full_results = T
       ) |>
       bind_rows(tibble(
+        hamlet = NA_character_,
         village = NA_character_, # ensure the village and suburb columns are present
+        town = NA_character_,
         suburb = NA_character_,
-        neighbourhood = NA_character_
+        neighbourhood = NA_character_,
+        city = NA_character_
       ))
   } else {
     position_extremities <- tibble(extremity = c("N", "S", "E", "W")) |>
       mutate(
         latitude = NA,
         longitude = NA,
+        hamlet = NA_character_,
         village = "No outside rides YTD",
-        suburb = "No outside rides YTD"
+        town = NA_character_,
+        suburb = "No outside rides YTD",
+        neighbourhood = NA_character_,
+        city = NA_character_
       )
   }
   return(position_extremities)
@@ -294,7 +301,7 @@ draw_ytd_curve <- function(metric_to_plot, ytd_stats) {
 }
 
 
-get_coord_valuebox <- function(pos_needed) {
+get_coord_valuebox <- function(pos_needed, position_extremities) {
   positions <- position_extremities |>
     filter(extremity == pos_needed) |>
     mutate(
@@ -326,7 +333,7 @@ get_coord_valuebox <- function(pos_needed) {
   }
 
   link_str <- str_glue(
-    "https://www.google.com/maps/place/{positions$lat}N+{if_else(positions$lng>0,str_c(positions$lng,\"E\"),str_c(0 - positions$lng,\"W\"))}"
+    "https://www.google.com/maps/place/{positions$latitude}N+{if_else(positions$longitude>0,str_c(positions$longitude,\"E\"),str_c(0 - positions$longitude,\"W\"))}"
   )
   vb <- valueBox(
     positions$city_name,
@@ -410,7 +417,11 @@ draw_critical_metric_curve <- function(metric_to_plot, con) {
         WHERE metric_name = ?
           "
 
-  peaks_all_time <- dbGetQuery(con, query, params = list(units$metric_name))
+  peaks_all_time <- dbGetQuery(
+    conn = con,
+    query,
+    params = list(units$metric_name)
+  )
 
   peaks_last_year <- peaks_all_time |>
     filter(year(start_date_local) == year(Sys.Date() - years(1))) |>
