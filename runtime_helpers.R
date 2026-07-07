@@ -20,13 +20,13 @@ install_cron_job <- function() {
     stop("DASHBOARD_REFRESH_SCHEDULE environment variable not set.")
   }
 
-  scraper_path <- normalizePath(
-    here::here("scraper.R"),
+  dashboard_path <- normalizePath(
+    here::here("render_dashboard.R"),
     winslash = "/"
   )
 
   log_path <- normalizePath(
-    here::here("scraper.log"),
+    here::here("dashboard_refresh.log"),
     winslash = "/"
   )
 
@@ -58,7 +58,7 @@ install_cron_job <- function() {
     start_string,
     "## desc: Cycling Analytics dashboard refresh",
     glue::glue(
-      "{schedule} /usr/local/bin/Rscript '{scraper_path}' cron >> '{log_path}' 2>&1"
+      "{schedule} /usr/local/bin/Rscript '{dashboard_path}' cron >> '{log_path}' 2>&1"
     ),
     end_string
   )
