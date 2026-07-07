@@ -22,12 +22,20 @@ install_cron_job <- function() {
 
   dashboard_path <- normalizePath(
     here::here("render_dashboard.R"),
-    winslash = "/"
+    winslash = "/",
+    mustWork = TRUE
   )
 
   log_path <- normalizePath(
     here::here("dashboard_refresh.log"),
-    winslash = "/"
+    winslash = "/",
+    mustWork = FALSE
+  )
+
+  rscript_path <- normalizePath(
+    file.path(R.home("bin"), "Rscript"),
+    winslash = "/",
+    mustWork = TRUE
   )
 
   existing <- tryCatch(
@@ -58,7 +66,7 @@ install_cron_job <- function() {
     start_string,
     "## desc: Cycling Analytics dashboard refresh",
     glue::glue(
-      "{schedule} /usr/local/bin/Rscript '{dashboard_path}' cron >> '{log_path}' 2>&1"
+      "{schedule} '{rscript_path}' '{dashboard_path}' >> '{log_path}' 2>&1"
     ),
     end_string
   )
@@ -87,10 +95,14 @@ install_cron_job <- function() {
   )
 }
 
-get_next_scraper_run <- function() {
+get_next_dashboard_run <- function() {
   tz <- Sys.timezone()
 
   schedule <- Sys.getenv("DASHBOARD_REFRESH_SCHEDULE")
+
+  if (schedule == "") {
+    return(as.POSIXct(NA))
+  }
 
   schedule <- str_split_1(schedule, pattern = " ")
 

@@ -37,7 +37,7 @@ Summary
 Row
 -----------------------------------------------------------------------
 
-### `r str_glue('Last refresh: {format(Sys.time(), "%H:%M")}<br>','Next refesh: {format(get_next_scraper_run(), "%H:%M")}'
+### `r str_glue('Last refresh: {format(Sys.time(), "%H:%M")}<br>','Next refresh: {format(get_next_dashboard_run(), "%H:%M")}'
 )`
 
 ```{r}
