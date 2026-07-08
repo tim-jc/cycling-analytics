@@ -160,22 +160,54 @@ publish_to_git <- function(
   file_to_publish = "docs/index.html",
   commit_msg = "auto commit from cron / Rscript"
 ) {
-  git_cmd <- stringr::str_glue(
-    "
-    cd '{git_path}' &&
-    git add '{file_to_publish}' &&
-    git commit -m '{commit_msg}' &&
-    git push origin main
-    "
-  )
+  run_git <- function(args) {
+    result <- withr::with_dir(
+      git_path,
+      system2(
+        "git",
+        args = args,
+        stdout = TRUE,
+        stderr = TRUE
+      )
+    )
 
-  result <- system(
-    git_cmd,
-    intern = TRUE,
-    ignore.stderr = FALSE
-  )
+    status <- attr(result, "status")
+    if (is.null(status)) {
+      status <- 0
+    }
 
-  print(result)
+    list(output = result, status = status)
+  }
+
+  check_git <- function(args, label) {
+    result <- run_git(args)
+
+    if (length(result$output) > 0) {
+      message(paste(result$output, collapse = "\n"))
+    }
+
+    if (result$status != 0) {
+      stop(label, " failed with status ", result$status, call. = FALSE)
+    }
+
+    invisible(result)
+  }
+
+  check_git(c("add", file_to_publish), "git add")
+
+  diff_result <- run_git(c("diff", "--cached", "--quiet"))
+
+  if (diff_result$status == 0) {
+    message("No changes to publish.")
+    return(invisible(FALSE))
+  }
+
+  check_git(c("commit", "-m", commit_msg), "git commit")
+  check_git(c("pull", "--rebase", "origin", "main"), "git pull --rebase")
+  check_git(c("push", "origin", "main"), "git push")
+
+  message("Published dashboard to GitHub.")
+  invisible(TRUE)
 }
 
 check_cron_schedule <- function() {
