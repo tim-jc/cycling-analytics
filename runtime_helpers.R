@@ -165,7 +165,7 @@ publish_to_git <- function(
       git_path,
       system2(
         "git",
-        args = args,
+        args = shQuote(args),
         stdout = TRUE,
         stderr = TRUE
       )
