@@ -24,31 +24,74 @@ get_project_root <- function() {
   )
 }
 
+check_required_packages <- function(packages, project_root) {
+  missing_packages <- packages[
+    !vapply(packages, requireNamespace, logical(1), quietly = TRUE)
+  ]
+
+  if (length(missing_packages) == 0) {
+    return(invisible(TRUE))
+  }
+
+  stop(
+    "Missing required package(s) in the active R library: ",
+    paste(missing_packages, collapse = ", "),
+    "\nDetected project root: ",
+    project_root,
+    "\nActive library paths:\n- ",
+    paste(.libPaths(), collapse = "\n- "),
+    "\nRun `Rscript -e \"renv::restore()\"` from the project root, then retry `Rscript render_dashboard.R`.",
+    call. = FALSE
+  )
+}
+
 main <- function() {
   # project setup -----------------------------------------------------------
 
   project_root <- get_project_root()
+
+  old_wd <- setwd(project_root)
+  on.exit(setwd(old_wd), add = TRUE)
+
+  Sys.setenv(RENV_PROJECT = project_root)
 
   renv_activate <- file.path(project_root, "renv", "activate.R")
   if (file.exists(renv_activate)) {
     source(renv_activate)
   }
 
-  old_wd <- setwd(project_root)
-  on.exit(setwd(old_wd), add = TRUE)
-
-  here::i_am("render_dashboard.R")
+  check_required_packages(
+    c(
+      "DBI",
+      "RMariaDB",
+      "flexdashboard",
+      "tidyverse",
+      "plotly",
+      "leaflet",
+      "leaflet.extras",
+      "lubridate",
+      "mapdata",
+      "rmarkdown",
+      "tibble",
+      "tidygeocoder",
+      "glue",
+      "htmlwidgets",
+      "httr",
+      "withr"
+    ),
+    project_root
+  )
 
   # source runtime helpers --------------------------------------------------
 
-  source(here::here("db/db.R"))
-  source(here::here("runtime_helpers.R"))
-  source(here::here("dashboard_functions.R"))
+  source(file.path(project_root, "db", "db.R"))
+  source(file.path(project_root, "runtime_helpers.R"))
+  source(file.path(project_root, "dashboard_functions.R"))
 
   # environment -------------------------------------------------------------
 
   # load local environment variables when present
-  environ_path <- here::here(".Renviron")
+  environ_path <- file.path(project_root, ".Renviron")
   if (file.exists(environ_path)) {
     readRenviron(environ_path)
   }
@@ -77,14 +120,14 @@ main <- function() {
 
   # Render dashboard
   rmarkdown::render(
-    here::here("dashboards/index.Rmd"),
+    file.path(project_root, "dashboards", "index.Rmd"),
     output_file = "index.html",
-    output_dir = here::here("docs/"),
+    output_dir = file.path(project_root, "docs"),
     envir = render_env
   )
 
   # Push updated dashboard to git
-  publish_to_git()
+  publish_to_git(git_path = project_root)
 
   # Send notification
   ntfy_msg <- glue::glue(

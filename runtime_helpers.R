@@ -13,7 +13,7 @@ log_message <- function(msg) {
   flush.console()
 }
 
-install_cron_job <- function() {
+install_cron_job <- function(project_path = getwd()) {
   schedule <- Sys.getenv("DASHBOARD_REFRESH_SCHEDULE")
 
   if (schedule == "") {
@@ -21,13 +21,19 @@ install_cron_job <- function() {
   }
 
   dashboard_path <- normalizePath(
-    here::here("render_dashboard.R"),
+    file.path(project_path, "render_dashboard.R"),
+    winslash = "/",
+    mustWork = TRUE
+  )
+
+  project_path <- normalizePath(
+    project_path,
     winslash = "/",
     mustWork = TRUE
   )
 
   log_path <- normalizePath(
-    here::here("dashboard_refresh.log"),
+    file.path(project_path, "dashboard_refresh.log"),
     winslash = "/",
     mustWork = FALSE
   )
@@ -66,7 +72,7 @@ install_cron_job <- function() {
     start_string,
     "## desc: Cycling Analytics dashboard refresh",
     glue::glue(
-      "{schedule} '{rscript_path}' '{dashboard_path}' >> '{log_path}' 2>&1"
+      "{schedule} cd '{project_path}' && RENV_PROJECT='{project_path}' '{rscript_path}' '{dashboard_path}' >> '{log_path}' 2>&1"
     ),
     end_string
   )
@@ -156,18 +162,20 @@ send_ntfy_message <- function(
 }
 
 publish_to_git <- function(
-  git_path = here::here(),
+  git_path = getwd(),
   file_to_publish = "docs/index.html",
   commit_msg = "auto commit from cron / Rscript"
 ) {
   run_git <- function(args) {
-    result <- withr::with_dir(
-      git_path,
-      system2(
-        "git",
-        args = shQuote(args),
-        stdout = TRUE,
-        stderr = TRUE
+    result <- suppressWarnings(
+      withr::with_dir(
+        git_path,
+        system2(
+          "git",
+          args = shQuote(args),
+          stdout = TRUE,
+          stderr = TRUE
+        )
       )
     )
 
@@ -198,12 +206,12 @@ publish_to_git <- function(
   diff_result <- run_git(c("diff", "--cached", "--quiet"))
 
   if (diff_result$status == 0) {
-    message("No changes to publish.")
+    message("No dashboard changes to commit.")
+    check_git(c("push", "origin", "main"), "git push")
     return(invisible(FALSE))
   }
 
   check_git(c("commit", "-m", commit_msg), "git commit")
-  check_git(c("pull", "--rebase", "origin", "main"), "git pull --rebase")
   check_git(c("push", "origin", "main"), "git push")
 
   message("Published dashboard to GitHub.")

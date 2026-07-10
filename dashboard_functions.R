@@ -14,7 +14,7 @@ peaks_units <- tibble::tribble(
 
 # Get streams
 get_streams <- function(con) {
-  dbGetQuery(
+  DBI::dbGetQuery(
     conn = con,
     "SELECT
     a.activity_id,
@@ -25,20 +25,22 @@ get_streams <- function(con) {
     a.moving_time_seconds, 
     a.energy_kilojoules,
     s.latitude,
-    s.longitude
+    s.longitude,
+    s.sample_index AS stream_order
    FROM
     cycling_platform_silver.activities a
    INNER JOIN cycling_platform_silver.activity_streams s
     ON a.activity_id = s.activity_id
    WHERE
     a.sport_type IN ('Ride','VirtualRide')
-    AND YEAR(a.start_date_local) >= (YEAR(NOW()) - 1)"
+    AND YEAR(a.start_date_local) >= (YEAR(NOW()) - 1)
+   ORDER BY a.activity_id, s.sample_index"
   )
 }
 
 # tbr streams
 get_tbr_streams <- function(con) {
-  dbGetQuery(
+  DBI::dbGetQuery(
     conn = con,
     "SELECT
       a.activity_id,
@@ -48,13 +50,15 @@ get_tbr_streams <- function(con) {
       a.distance_metres, 
       a.moving_time_seconds, 
       s.latitude,
-      s.longitude
+      s.longitude,
+      s.sample_index AS stream_order
     FROM
       cycling_platform_silver.activities a
     INNER JOIN cycling_platform_silver.activity_streams s
       ON a.activity_id = s.activity_id
     WHERE
-      a.activity_name like '%tbr%'"
+      a.activity_name like '%tbr%'
+    ORDER BY a.activity_id, s.sample_index"
   )
 }
 
@@ -366,7 +370,17 @@ add_track <- function(
 }
 
 draw_map <- function(streams_tbl) {
-  streams_tbl <- streams_tbl |> filter(sport_type == "Ride")
+  streams_tbl <- streams_tbl |>
+    filter(sport_type == "Ride")
+
+  if ("stream_order" %in% names(streams_tbl)) {
+    streams_tbl <- streams_tbl |>
+      arrange(activity_id, stream_order)
+  } else {
+    streams_tbl <- streams_tbl |>
+      arrange(activity_id)
+  }
+
   map <- leaflet() |>
     addTiles(
       'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}.png',
@@ -417,7 +431,7 @@ draw_critical_metric_curve <- function(metric_to_plot, con) {
         WHERE metric_name = ?
           "
 
-  peaks_all_time <- dbGetQuery(
+  peaks_all_time <- DBI::dbGetQuery(
     conn = con,
     query,
     params = list(units$metric_name)

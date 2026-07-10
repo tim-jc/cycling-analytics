@@ -31,3 +31,13 @@ install_cron_job()
 ```
 
 The cron entry runs `render_dashboard.R` directly and writes output to `dashboard_refresh.log`. The render script does not require or use a `cron` command-line argument.
+
+Re-run `install_cron_job()` after changing the repository path, R installation, or cron helper so the managed crontab block is regenerated.
+
+## Troubleshooting renv
+
+If `render_dashboard.R` reports missing packages after `renv::restore()`, confirm that R is using the project library:
+
+```sh
+Rscript -e "source('renv/activate.R'); print(.libPaths()); print(requireNamespace('DBI', quietly = TRUE))"
+```

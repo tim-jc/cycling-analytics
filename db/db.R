@@ -1,6 +1,3 @@
-library(DBI)
-library(RMariaDB)
-
 connect_db <- function(max_attempts = 5, wait_seconds = 30) {
   for (i in seq_len(max_attempts)) {
     cat(glue::glue(
@@ -8,7 +5,7 @@ connect_db <- function(max_attempts = 5, wait_seconds = 30) {
     ))
 
     con <- tryCatch(
-      dbConnect(
+      DBI::dbConnect(
         RMariaDB::MariaDB(),
         host = Sys.getenv("MARIADB_HOST"),
         port = as.integer(Sys.getenv("MARIADB_PORT")),
