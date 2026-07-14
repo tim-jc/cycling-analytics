@@ -235,6 +235,229 @@ get_ytd_valuebox <- function(
   )
 }
 
+build_activity_summary <- function(activity_streams) {
+  activity_streams |>
+    select(
+      activity_id,
+      sport_type,
+      start_date_local,
+      distance_metres,
+      moving_time_seconds,
+      energy_kilojoules
+    ) |>
+    distinct() |>
+    mutate(
+      start_date_local = as.Date(start_date_local),
+      distance_mi = distance_metres * 0.000621371,
+      moving_time_hr = moving_time_seconds / 3600
+    )
+}
+
+get_annual_distance_goal_mi <- function(ytd_stats = NULL) {
+  goal_env <- Sys.getenv("ANNUAL_DISTANCE_GOAL_MI", "")
+  annual_goal_mi <- if (nzchar(goal_env)) {
+    suppressWarnings(as.numeric(goal_env))
+  } else {
+    NA_real_
+  }
+
+  if (!is.na(annual_goal_mi) && annual_goal_mi > 0) {
+    return(annual_goal_mi)
+  }
+
+  if (!is.null(ytd_stats)) {
+    last_year_total_mi <- ytd_stats |>
+      filter(yr_lbl == "pytd", ytd_val) |>
+      summarise(distance_mi = max(yr_distance_mi, na.rm = TRUE)) |>
+      pull(distance_mi)
+
+    if (!is.na(last_year_total_mi) && last_year_total_mi > 0) {
+      return(last_year_total_mi)
+    }
+  }
+
+  NA_real_
+}
+
+get_annual_distance_goal_label <- function(ytd_stats) {
+  annual_goal_mi <- get_annual_distance_goal_mi(ytd_stats)
+
+  if (is.na(annual_goal_mi)) {
+    return("no target")
+  }
+
+  str_glue("{round(annual_goal_mi, 0)} mi target")
+}
+
+get_latest_ride_valuebox <- function(activity_summary) {
+  latest_ride <- activity_summary |>
+    filter(sport_type == "Ride") |>
+    arrange(desc(start_date_local)) |>
+    slice_head(n = 1)
+
+  if (nrow(latest_ride) == 0) {
+    return(valueBox("No rides", icon = "fa-road", color = "#EDF0F1"))
+  }
+
+  valueBox(
+    str_glue("{round(latest_ride$distance_mi, 1)} mi"),
+    icon = "fa-road",
+    color = "#EDF0F1",
+    href = str_glue("https://www.strava.com/activities/{latest_ride$activity_id}")
+  )
+}
+
+get_goal_progress_valuebox <- function(ytd_stats) {
+  annual_goal_mi <- get_annual_distance_goal_mi(ytd_stats)
+
+  if (is.na(annual_goal_mi)) {
+    return(valueBox("No goal", icon = "fa-bullseye", color = "#EDF0F1"))
+  }
+
+  ytd_distance_mi <- get_ytd_values("distance_mi", ytd_stats)[["ytd"]]
+  goal_progress <- ytd_distance_mi / annual_goal_mi
+
+  valueBox(
+    str_glue("{round(goal_progress * 100, 1)}%"),
+    icon = "fa-bullseye",
+    color = "#EDF0F1"
+  )
+}
+
+get_goal_pace_valuebox <- function(ytd_stats) {
+  annual_goal_mi <- get_annual_distance_goal_mi(ytd_stats)
+
+  if (is.na(annual_goal_mi)) {
+    return(valueBox("No goal", icon = "fa-arrows-left-right", color = "#EDF0F1"))
+  }
+
+  ytd_distance_mi <- get_ytd_values("distance_mi", ytd_stats)[["ytd"]]
+  expected_distance_mi <- annual_goal_mi * (yday(Sys.Date()) / 365)
+  pace_delta_mi <- ytd_distance_mi - expected_distance_mi
+
+  icon_str <- case_when(
+    pace_delta_mi > 0 ~ "fa-arrow-up",
+    pace_delta_mi < 0 ~ "fa-arrow-down",
+    TRUE ~ "fa-arrows-left-right"
+  )
+
+  valueBox(
+    str_glue("{round(abs(pace_delta_mi), 0)} mi {if_else(pace_delta_mi >= 0, 'ahead', 'behind')}"),
+    icon = icon_str,
+    color = "#EDF0F1"
+  )
+}
+
+get_ride_mix_valuebox <- function(activity_summary) {
+  split_tbl <- activity_summary |>
+    filter(year(start_date_local) == year(Sys.Date())) |>
+    mutate(ride_type = if_else(sport_type == "VirtualRide", "indoor", "outdoor")) |>
+    group_by(ride_type) |>
+    summarise(distance_mi = sum(distance_mi), .groups = "drop")
+
+  if (nrow(split_tbl) == 0 || sum(split_tbl$distance_mi) == 0) {
+    return(valueBox("No rides", icon = "fa-bicycle", color = "#EDF0F1"))
+  }
+
+  outdoor_mi <- split_tbl |>
+    filter(ride_type == "outdoor") |>
+    pull(distance_mi) |>
+    sum()
+
+  indoor_mi <- split_tbl |>
+    filter(ride_type == "indoor") |>
+    pull(distance_mi) |>
+    sum()
+
+  valueBox(
+    str_glue("{round(outdoor_mi, 0)} / {round(indoor_mi, 0)} mi"),
+    icon = "fa-bicycle",
+    color = "#EDF0F1"
+  )
+}
+
+draw_rolling_activity_curve <- function(activity_summary, window_days = 28) {
+  rolling_tbl <- activity_summary |>
+    filter(start_date_local >= Sys.Date() - days(120 + window_days)) |>
+    group_by(start_date_local) |>
+    summarise(
+      distance_mi = sum(distance_mi),
+      moving_time_hr = sum(moving_time_hr),
+      .groups = "drop"
+    ) |>
+    right_join(
+      tibble(
+        start_date_local = seq.Date(Sys.Date() - days(120), Sys.Date(), "days")
+      ),
+      by = "start_date_local"
+    ) |>
+    arrange(start_date_local) |>
+    mutate(
+      across(c(distance_mi, moving_time_hr), ~ replace_na(.x, 0)),
+      cumulative_distance_mi = cumsum(distance_mi),
+      rolling_distance_mi = cumulative_distance_mi -
+        lag(cumulative_distance_mi, n = window_days, default = 0),
+      in_plot_window = start_date_local >= Sys.Date() - days(120),
+      hover_lbl = str_glue(
+        "{start_date_local}
+{window_days}d distance = {round(rolling_distance_mi, 1)} mi"
+      )
+    ) |>
+    filter(in_plot_window)
+
+  plotly::plot_ly(
+    rolling_tbl,
+    x = ~start_date_local,
+    y = ~rolling_distance_mi,
+    type = "scatter",
+    mode = "lines",
+    fill = "tozeroy",
+    text = ~hover_lbl,
+    hoverinfo = "text",
+    line = list(color = "#0C2340"),
+    fillcolor = "rgba(12, 35, 64, 0.2)"
+  ) |>
+    plotly::layout(
+      xaxis = list(title = ""),
+      yaxis = list(title = str_glue("{window_days}d miles"))
+    )
+}
+
+draw_activity_calendar <- function(activity_summary) {
+  calendar_tbl <- activity_summary |>
+    filter(year(start_date_local) == year(Sys.Date())) |>
+    group_by(start_date_local) |>
+    summarise(distance_mi = sum(distance_mi), .groups = "drop") |>
+    right_join(
+      tibble(
+        start_date_local = seq.Date(
+          floor_date(Sys.Date(), "year"),
+          Sys.Date(),
+          "days"
+        )
+      ),
+      by = "start_date_local"
+    ) |>
+    mutate(
+      distance_mi = replace_na(distance_mi, 0),
+      week = isoweek(start_date_local),
+      weekday = wday(start_date_local, label = TRUE, week_start = 1),
+      hover_lbl = str_glue("{start_date_local}
+{round(distance_mi, 1)} mi")
+    )
+
+  calendar_plot <- calendar_tbl |>
+    ggplot(aes(x = week, y = weekday, fill = distance_mi, text = hover_lbl)) +
+    geom_tile(color = "white", linewidth = 0.2) +
+    scale_fill_gradient(low = "grey95", high = "#0C2340") +
+    scale_y_discrete(limits = rev) +
+    theme_minimal() +
+    theme(legend.position = "none") +
+    labs(x = "ISO week number", y = "")
+
+  plotly::ggplotly(calendar_plot, tooltip = "text")
+}
+
 draw_ytd_curve <- function(metric_to_plot, ytd_stats) {
   ytd_tbl <- ytd_stats |>
     pivot_longer(c(matches("^ytd"), -ytd_val)) |>

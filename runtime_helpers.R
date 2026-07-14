@@ -208,14 +208,23 @@ publish_to_git <- function(
   if (diff_result$status == 0) {
     message("No dashboard changes to commit.")
     check_git(c("push", "origin", "main"), "git push")
-    return(invisible(FALSE))
+    return(invisible(list(
+      committed = FALSE,
+      pushed = TRUE,
+      commit = NA_character_
+    )))
   }
 
   check_git(c("commit", "-m", commit_msg), "git commit")
+  commit_hash <- run_git(c("rev-parse", "--short", "HEAD"))$output[[1]]
   check_git(c("push", "origin", "main"), "git push")
 
   message("Published dashboard to GitHub.")
-  invisible(TRUE)
+  invisible(list(
+    committed = TRUE,
+    pushed = TRUE,
+    commit = commit_hash
+  ))
 }
 
 check_cron_schedule <- function() {

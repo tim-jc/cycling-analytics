@@ -17,6 +17,8 @@ con <- connect_db()
 
 activity_streams <- get_streams(con)
 
+activity_summary <- build_activity_summary(activity_streams)
+
 tbr_streams <- get_tbr_streams(con)
 
 tbr_activities <- tbr_streams |> 
@@ -96,6 +98,54 @@ Row
 
 ```{r}
 draw_critical_metric_curve("power", con)
+```
+
+Trends
+===================================== 
+
+Row
+-----------------------------------------------------------------------
+
+### Latest outdoor ride
+
+```{r}
+get_latest_ride_valuebox(activity_summary)
+```
+
+### `r str_glue("Goal progress ({get_annual_distance_goal_label(ytd_stats)})")`
+
+```{r}
+get_goal_progress_valuebox(ytd_stats)
+```
+
+### Goal pace
+
+```{r}
+get_goal_pace_valuebox(ytd_stats)
+```
+
+### Outdoor / indoor miles
+
+```{r}
+get_ride_mix_valuebox(activity_summary)
+```
+
+Row
+-----------------------------------------------------------------------
+
+### Rolling 28 day distance
+
+```{r}
+draw_rolling_activity_curve(activity_summary)
+```
+
+Row
+-----------------------------------------------------------------------
+
+### Daily distance calendar
+
+```{r}
+draw_activity_calendar(activity_summary)
 ```
 
 Map

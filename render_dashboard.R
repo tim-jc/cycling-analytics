@@ -45,6 +45,73 @@ check_required_packages <- function(packages, project_root) {
   )
 }
 
+format_dashboard_number <- function(value, digits = 0) {
+  format(
+    round(value, digits),
+    big.mark = ",",
+    trim = TRUE,
+    nsmall = digits
+  )
+}
+
+get_latest_ride_summary <- function(activity_streams) {
+  latest_ride <- activity_streams |>
+    dplyr::filter(.data$sport_type == "Ride") |>
+    dplyr::select(
+      "activity_id",
+      "start_date_local",
+      "distance_metres"
+    ) |>
+    dplyr::distinct() |>
+    dplyr::arrange(dplyr::desc(.data$start_date_local)) |>
+    dplyr::slice_head(n = 1)
+
+  if (nrow(latest_ride) == 0) {
+    return("Latest ride: none")
+  }
+
+  distance_mi <- latest_ride$distance_metres * 0.000621371
+  ride_date <- format(as.Date(latest_ride$start_date_local), "%d %b")
+
+  glue::glue(
+    "Latest ride: {format_dashboard_number(distance_mi, 1)} mi on {ride_date}"
+  )
+}
+
+get_publish_summary <- function(publish_result) {
+  if (isTRUE(publish_result$committed)) {
+    return(glue::glue("Publish: commit {publish_result$commit} pushed"))
+  }
+
+  "Publish: no dashboard changes"
+}
+
+build_success_notification <- function(render_env, publish_result, rendered_at) {
+  ytd_stats <- render_env$ytd_stats
+
+  ytd_distance <- get_ytd_values("distance_mi", ytd_stats)[["ytd"]]
+  ytd_tons <- get_ytd_values("tons", ytd_stats)[["ytd"]]
+  ytd_hours <- get_ytd_values("time_hr", ytd_stats)[["ytd"]]
+
+  next_run <- get_next_dashboard_run()
+  next_run_text <- if (is.na(next_run)) {
+    "not scheduled"
+  } else {
+    format(next_run, "%H:%M")
+  }
+
+  paste(
+    glue::glue("Rendered: {format(rendered_at, '%d %b %H:%M')}"),
+    glue::glue(
+      "YTD: {format_dashboard_number(ytd_distance)} mi | {format_dashboard_number(ytd_tons)} tons | {format_dashboard_number(ytd_hours)} hr"
+    ),
+    get_latest_ride_summary(render_env$activity_streams),
+    get_publish_summary(publish_result),
+    glue::glue("Next refresh: {next_run_text}"),
+    sep = "\n"
+  )
+}
+
 main <- function() {
   # project setup -----------------------------------------------------------
 
@@ -127,14 +194,32 @@ main <- function() {
   )
 
   # Push updated dashboard to git
-  publish_to_git(git_path = project_root)
+  publish_result <- publish_to_git(git_path = project_root)
 
   # Send notification
-  ntfy_msg <- glue::glue(
-    "Cycling Analytics dashboard refreshed at {format(Sys.time(), '%Y-%m-%d %H:%M:%S')}."
+  ntfy_msg <- build_success_notification(
+    render_env,
+    publish_result,
+    Sys.time()
   )
 
-  send_ntfy_message(ntfy_msg)
+  msg_title <- if (isTRUE(publish_result$committed)) {
+    "Dashboard published"
+  } else {
+    "Dashboard checked"
+  }
+
+  msg_tags <- if (isTRUE(publish_result$committed)) {
+    "bike,white_check_mark"
+  } else {
+    "bike,mag"
+  }
+
+  send_ntfy_message(
+    ntfy_msg,
+    msg_title = msg_title,
+    msg_tags = msg_tags
+  )
 
   log_message("Dashboard refresh complete.")
 }

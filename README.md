@@ -13,6 +13,14 @@ Rscript -e "renv::restore()"
 
 Configure the database and dashboard environment variables in a local `.Renviron` file or through your shell/CI environment. `.Renviron` is intentionally ignored by git.
 
+Optional dashboard settings:
+
+```sh
+ANNUAL_DISTANCE_GOAL_MI=6000
+```
+
+If `ANNUAL_DISTANCE_GOAL_MI` is not set, the dashboard uses last year's total mileage as the annual distance goal.
+
 Render the dashboard with:
 
 ```sh
