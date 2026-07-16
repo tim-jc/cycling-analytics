@@ -26,6 +26,12 @@ install_cron_job <- function(project_path = getwd()) {
     mustWork = TRUE
   )
 
+  dashboard_runner_path <- normalizePath(
+    file.path(project_path, "scripts", "run_dashboard_refresh.sh"),
+    winslash = "/",
+    mustWork = TRUE
+  )
+
   project_path <- normalizePath(
     project_path,
     winslash = "/",
@@ -72,7 +78,7 @@ install_cron_job <- function(project_path = getwd()) {
     start_string,
     "## desc: Cycling Analytics dashboard refresh",
     glue::glue(
-      "{schedule} cd '{project_path}' && RENV_PROJECT='{project_path}' '{rscript_path}' '{dashboard_path}' >> '{log_path}' 2>&1"
+      "{schedule} cd '{project_path}' && RENV_PROJECT='{project_path}' RSCRIPT='{rscript_path}' DASHBOARD_SCRIPT='{dashboard_path}' DASHBOARD_LOG='{log_path}' '{dashboard_runner_path}'"
     ),
     end_string
   )
