@@ -303,7 +303,9 @@ get_latest_ride_valuebox <- function(activity_summary) {
     str_glue("{round(latest_ride$distance_mi, 1)} mi"),
     icon = "fa-road",
     color = "#EDF0F1",
-    href = str_glue("https://www.strava.com/activities/{latest_ride$activity_id}")
+    href = str_glue(
+      "https://www.strava.com/activities/{latest_ride$activity_id}"
+    )
   )
 }
 
@@ -328,7 +330,11 @@ get_goal_pace_valuebox <- function(ytd_stats) {
   annual_goal_mi <- get_annual_distance_goal_mi(ytd_stats)
 
   if (is.na(annual_goal_mi)) {
-    return(valueBox("No goal", icon = "fa-arrows-left-right", color = "#EDF0F1"))
+    return(valueBox(
+      "No goal",
+      icon = "fa-arrows-left-right",
+      color = "#EDF0F1"
+    ))
   }
 
   ytd_distance_mi <- get_ytd_values("distance_mi", ytd_stats)[["ytd"]]
@@ -342,7 +348,9 @@ get_goal_pace_valuebox <- function(ytd_stats) {
   )
 
   valueBox(
-    str_glue("{round(abs(pace_delta_mi), 0)} mi {if_else(pace_delta_mi >= 0, 'ahead', 'behind')}"),
+    str_glue(
+      "{round(abs(pace_delta_mi), 0)} mi {if_else(pace_delta_mi >= 0, 'ahead', 'behind')}"
+    ),
     icon = icon_str,
     color = "#EDF0F1"
   )
@@ -351,7 +359,9 @@ get_goal_pace_valuebox <- function(ytd_stats) {
 get_ride_mix_valuebox <- function(activity_summary) {
   split_tbl <- activity_summary |>
     filter(year(start_date_local) == year(Sys.Date())) |>
-    mutate(ride_type = if_else(sport_type == "VirtualRide", "indoor", "outdoor")) |>
+    mutate(
+      ride_type = if_else(sport_type == "VirtualRide", "indoor", "outdoor")
+    ) |>
     group_by(ride_type) |>
     summarise(distance_mi = sum(distance_mi), .groups = "drop")
 
@@ -374,6 +384,573 @@ get_ride_mix_valuebox <- function(activity_summary) {
     icon = "fa-bicycle",
     color = "#EDF0F1"
   )
+}
+
+format_effort_duration <- function(duration_seconds) {
+  case_when(
+    duration_seconds %% 60 == 0 ~ str_glue("{duration_seconds / 60} min"),
+    TRUE ~ str_glue("{duration_seconds} sec")
+  )
+}
+
+rolling_mean_trailing <- function(values, window = 10) {
+  observed_values <- if_else(is.na(values), 0, values)
+  observed_counts <- if_else(is.na(values), 0L, 1L)
+  rolling_sums <- cumsum(observed_values)
+  rolling_counts <- cumsum(observed_counts)
+  lagged_sums <- lag(rolling_sums, window, default = 0)
+  lagged_counts <- lag(rolling_counts, window, default = 0)
+  window_sums <- rolling_sums - lagged_sums
+  window_counts <- rolling_counts - lagged_counts
+
+  if_else(window_counts > 0, window_sums / window_counts, NA_real_)
+}
+
+get_ytd_best_power_efforts <- function(
+  con,
+  durations_seconds = c(600, 1200, 1800, 3600)
+) {
+  durations_seconds <- as.integer(durations_seconds)
+  durations_sql <- str_flatten_comma(durations_seconds)
+
+  efforts <- DBI::dbGetQuery(
+    conn = con,
+    str_glue(
+      "SELECT
+        abe.activity_id,
+        a.start_date_local,
+        a.sport_type,
+        abe.duration_seconds,
+        abe.metric_name,
+        abe.peak_value,
+        abe.start_sample_index,
+        abe.end_sample_index,
+        abe.start_latitude,
+        abe.start_longitude,
+        abe.end_latitude,
+        abe.end_longitude
+      FROM cycling_platform_gold.activity_best_efforts abe
+      INNER JOIN cycling_platform_silver.activities a
+        ON abe.activity_id = a.activity_id
+      WHERE abe.metric_name = 'watts'
+        AND abe.duration_seconds IN ({durations_sql})
+        AND YEAR(a.start_date_local) = YEAR(NOW())"
+    )
+  )
+
+  efforts |>
+    group_by(metric_name, duration_seconds) |>
+    slice_max(peak_value, n = 1, with_ties = FALSE) |>
+    ungroup() |>
+    mutate(
+      duration_label = format_effort_duration(duration_seconds),
+      metric_label = "Power",
+      peak_label = str_glue("{round(peak_value, 0)} W"),
+      activity_url = str_glue("https://www.strava.com/activities/{activity_id}")
+    ) |>
+    arrange(duration_seconds)
+}
+
+get_best_effort_streams <- function(con, best_efforts) {
+  if (nrow(best_efforts) == 0) {
+    return(tibble())
+  }
+
+  activity_ids <- best_efforts |>
+    pull(activity_id) |>
+    unique()
+
+  if (length(activity_ids) == 0) {
+    return(tibble())
+  }
+
+  activity_ids_sql <- activity_ids |>
+    as.numeric() |>
+    format(scientific = FALSE, trim = TRUE) |>
+    str_flatten_comma()
+
+  streams <- DBI::dbGetQuery(
+    conn = con,
+    str_glue(
+      "SELECT
+        activity_id,
+        sample_index AS stream_order,
+        distance_metres,
+        latitude,
+        longitude,
+        altitude_metres,
+        watts
+      FROM cycling_platform_silver.activity_streams
+      WHERE activity_id IN ({activity_ids_sql})
+      ORDER BY activity_id, sample_index"
+    )
+  )
+
+  best_efforts |>
+    inner_join(streams, by = "activity_id", relationship = "many-to-many") |>
+    filter(
+      stream_order >= start_sample_index,
+      stream_order <= end_sample_index
+    )
+}
+
+prepare_best_effort_stream <- function(
+  best_effort_streams,
+  best_efforts,
+  duration_seconds
+) {
+  target_duration <- duration_seconds
+
+  effort <- best_efforts |>
+    filter(.data$duration_seconds == target_duration) |>
+    slice_head(n = 1)
+
+  if (nrow(effort) == 0 || nrow(best_effort_streams) == 0) {
+    return(tibble())
+  }
+
+  effort_streams <- best_effort_streams |>
+    filter(.data$duration_seconds == target_duration) |>
+    arrange(stream_order)
+
+  if (nrow(effort_streams) == 0) {
+    return(tibble())
+  }
+
+  distance_start <- if (all(is.na(effort_streams$distance_metres))) {
+    NA_real_
+  } else {
+    min(effort_streams$distance_metres, na.rm = TRUE)
+  }
+
+  effort_streams |>
+    mutate(
+      effort_distance_mi = (distance_metres - distance_start) *
+        0.000621371,
+      power_smooth = rolling_mean_trailing(watts, window = 10)
+    )
+}
+
+get_gradient_fill_colour <- function(gradient_percent) {
+  case_when(
+    is.na(gradient_percent) ~ "rgba(148, 163, 184, 0.35)",
+    gradient_percent < 0 ~ "rgba(96, 165, 250, 0.35)",
+    gradient_percent < 3 ~ "rgba(34, 197, 94, 0.32)",
+    gradient_percent < 6 ~ "rgba(250, 204, 21, 0.38)",
+    gradient_percent < 9 ~ "rgba(249, 115, 22, 0.40)",
+    TRUE ~ "rgba(239, 68, 68, 0.42)"
+  )
+}
+
+build_elevation_gradient_blocks <- function(
+  elevation_streams,
+  block_metres = 1000,
+  min_block_metres = 200
+) {
+  if (nrow(elevation_streams) < 2) {
+    return(tibble())
+  }
+
+  elevation_streams |>
+    filter(!is.na(distance_metres), !is.na(altitude_metres)) |>
+    arrange(stream_order) |>
+    mutate(
+      distance_from_start_metres = distance_metres - min(distance_metres),
+      gradient_block = floor(distance_from_start_metres / block_metres)
+    ) |>
+    group_by(gradient_block) |>
+    summarise(
+      block_start_mi = first(effort_distance_mi),
+      block_end_mi = last(effort_distance_mi),
+      block_distance_metres = last(distance_metres) - first(distance_metres),
+      altitude_start_metres = first(altitude_metres),
+      altitude_end_metres = last(altitude_metres),
+      gradient_percent = if_else(
+        block_distance_metres > 0,
+        100 *
+          (altitude_end_metres - altitude_start_metres) /
+          block_distance_metres,
+        NA_real_
+      ),
+      .groups = "drop"
+    ) |>
+    filter(block_distance_metres >= min_block_metres) |>
+    mutate(
+      fill_colour = get_gradient_fill_colour(gradient_percent),
+      hover_lbl = str_glue(
+        "{round(block_start_mi, 2)}-{round(block_end_mi, 2)} mi<br>{round(gradient_percent, 1)}%"
+      )
+    )
+}
+
+add_elevation_gradient_fills <- function(elevation_plot, elevation_streams) {
+  gradient_blocks <- build_elevation_gradient_blocks(elevation_streams)
+
+  if (nrow(gradient_blocks) == 0) {
+    return(elevation_plot)
+  }
+
+  for (block_index in seq_len(nrow(gradient_blocks))) {
+    block <- gradient_blocks[block_index, ]
+
+    block_stream <- elevation_streams |>
+      filter(
+        effort_distance_mi >= block$block_start_mi,
+        effort_distance_mi <= block$block_end_mi
+      ) |>
+      arrange(effort_distance_mi)
+
+    if (nrow(block_stream) < 2) {
+      next
+    }
+
+    polygon_tbl <- bind_rows(
+      tibble(
+        effort_distance_mi = first(block_stream$effort_distance_mi),
+        altitude_metres = 0,
+        hover_lbl = block$hover_lbl
+      ),
+      block_stream |>
+        transmute(
+          effort_distance_mi,
+          altitude_metres,
+          hover_lbl = block$hover_lbl
+        ),
+      tibble(
+        effort_distance_mi = last(block_stream$effort_distance_mi),
+        altitude_metres = 0,
+        hover_lbl = block$hover_lbl
+      )
+    )
+
+    elevation_plot <- elevation_plot |>
+      plotly::add_trace(
+        data = polygon_tbl,
+        x = ~effort_distance_mi,
+        y = ~altitude_metres,
+        type = "scatter",
+        mode = "lines",
+        fill = "toself",
+        fillcolor = block$fill_colour,
+        line = list(color = "rgba(0,0,0,0)", width = 0),
+        text = ~hover_lbl,
+        hoverinfo = "text",
+        showlegend = FALSE
+      )
+  }
+
+  elevation_plot
+}
+
+get_best_effort_valuebox <- function(best_efforts, duration_seconds) {
+  target_duration <- duration_seconds
+
+  effort <- best_efforts |>
+    filter(.data$duration_seconds == target_duration) |>
+    slice_head(n = 1)
+
+  if (nrow(effort) == 0) {
+    return(valueBox(
+      "No effort",
+      caption = str_glue("{format_effort_duration(duration_seconds)} power"),
+      icon = "fa-bolt",
+      color = "#EDF0F1"
+    ))
+  }
+
+  valueBox(
+    effort$peak_label,
+    caption = str_glue("{effort$duration_label} power"),
+    icon = "fa-bolt",
+    color = "#EDF0F1",
+    href = effort$activity_url
+  )
+}
+
+draw_best_effort_telemetry <- function(
+  best_effort_streams,
+  best_efforts,
+  duration_seconds
+) {
+  target_duration <- duration_seconds
+
+  effort <- best_efforts |>
+    filter(.data$duration_seconds == target_duration) |>
+    slice_head(n = 1)
+
+  duration_label <- format_effort_duration(duration_seconds)
+
+  if (nrow(effort) == 0) {
+    return(draw_best_effort_placeholder(
+      str_glue("No {duration_label} effort yet"),
+      "No matching YTD power effort was found."
+    ))
+  }
+
+  effort_streams <- prepare_best_effort_stream(
+    best_effort_streams,
+    best_efforts,
+    duration_seconds
+  ) |>
+    filter(!is.na(effort_distance_mi))
+
+  power_streams <- effort_streams |>
+    filter(!is.na(power_smooth))
+
+  if (nrow(power_streams) < 2) {
+    return(draw_best_effort_placeholder(
+      "No power trace",
+      str_glue(
+        "{effort$peak_label} on {format(as.Date(effort$start_date_local), '%d %b')}"
+      )
+    ))
+  }
+
+  power_plot <- plotly::plot_ly(
+    power_streams,
+    x = ~effort_distance_mi,
+    y = ~power_smooth,
+    type = "scatter",
+    mode = "lines",
+    text = ~ str_glue(
+      "{round(effort_distance_mi, 2)} mi<br>{round(power_smooth, 0)} W"
+    ),
+    hoverinfo = "text",
+    line = list(color = "#0C2340", width = 2)
+  )
+
+  elevation_streams <- effort_streams |>
+    filter(!is.na(altitude_metres))
+
+  if (effort$sport_type != "VirtualRide" && nrow(elevation_streams) >= 2) {
+    elevation_plot <- plotly::plot_ly() |>
+      add_elevation_gradient_fills(elevation_streams) |>
+      plotly::add_trace(
+        data = elevation_streams,
+        x = ~effort_distance_mi,
+        y = ~altitude_metres,
+        type = "scatter",
+        mode = "lines",
+        text = ~ str_glue(
+          "{round(effort_distance_mi, 2)} mi<br>{round(altitude_metres, 0)} m"
+        ),
+        hoverinfo = "text",
+        line = list(color = "#0C2340", width = 2),
+        showlegend = FALSE
+      )
+    elevation_annotation <- list()
+  } else {
+    elevation_plot <- plotly::plot_ly(
+      power_streams,
+      x = ~effort_distance_mi,
+      y = rep(0, nrow(power_streams)),
+      type = "scatter",
+      mode = "lines",
+      hoverinfo = "skip",
+      line = list(color = "rgba(0,0,0,0)")
+    )
+    elevation_annotation <- list(
+      list(
+        text = "No outdoor elevation profile",
+        x = 0.5,
+        y = 0.22,
+        xref = "paper",
+        yref = "paper",
+        showarrow = FALSE,
+        font = list(color = "#334155", size = 12)
+      )
+    )
+  }
+
+  plotly::subplot(
+    power_plot,
+    elevation_plot,
+    nrows = 2,
+    shareX = TRUE,
+    titleX = TRUE,
+    titleY = TRUE,
+    margin = 0.03,
+    heights = c(0.5, 0.5)
+  ) |>
+    plotly::layout(
+      showlegend = FALSE,
+      margin = list(l = 50, r = 15, t = 10, b = 45),
+      annotations = elevation_annotation,
+      xaxis = list(
+        title = "",
+        showline = FALSE,
+        zeroline = FALSE
+      ),
+      xaxis2 = list(
+        title = "Miles",
+        showline = FALSE,
+        zeroline = FALSE
+      ),
+      yaxis = list(
+        title = "Power /W",
+        showline = FALSE,
+        zeroline = FALSE
+      ),
+      yaxis2 = list(
+        title = "Elevation /m",
+        rangemode = "tozero",
+        showline = FALSE,
+        zeroline = FALSE,
+        showticklabels = nrow(elevation_streams) >= 2 &&
+          effort$sport_type != "VirtualRide"
+      )
+    )
+}
+
+draw_best_effort_placeholder <- function(title, detail, min_height = "320px") {
+  htmltools::div(
+    style = paste(
+      str_glue("min-height: {min_height};"),
+      "display: flex;",
+      "flex-direction: column;",
+      "align-items: center;",
+      "justify-content: center;",
+      "border: 1px solid #e5e7eb;",
+      "background: #f8fafc;",
+      "color: #334155;",
+      "text-align: center;",
+      "padding: 1rem;"
+    ),
+    htmltools::div(
+      style = "font-size: 1.1rem; font-weight: 600; margin-bottom: 0.35rem;",
+      title
+    ),
+    htmltools::div(
+      style = "font-size: 0.9rem;",
+      detail
+    )
+  )
+}
+
+draw_best_effort_detail <- function(
+  best_effort_streams,
+  best_efforts,
+  duration_seconds
+) {
+  htmltools::tagList(
+    htmltools::div(
+      style = "height: 50%; min-height: 300px;",
+      draw_best_effort_map(best_effort_streams, best_efforts, duration_seconds)
+    ),
+    htmltools::div(
+      style = "height: 50%; min-height: 300px; margin-top: 0.5rem;",
+      draw_best_effort_telemetry(
+        best_effort_streams,
+        best_efforts,
+        duration_seconds
+      )
+    )
+  )
+}
+
+draw_best_effort_map <- function(
+  best_effort_streams,
+  best_efforts,
+  duration_seconds
+) {
+  target_duration <- duration_seconds
+
+  effort <- best_efforts |>
+    filter(.data$duration_seconds == target_duration) |>
+    slice_head(n = 1)
+
+  duration_label <- format_effort_duration(duration_seconds)
+
+  if (nrow(effort) == 0) {
+    return(draw_best_effort_placeholder(
+      str_glue("No {duration_label} effort yet"),
+      "No matching YTD power effort was found."
+    ))
+  }
+
+  if (effort$sport_type == "VirtualRide") {
+    return(draw_best_effort_placeholder(
+      "Virtual ride",
+      str_glue(
+        "{effort$peak_label} on {format(as.Date(effort$start_date_local), '%d %b')}"
+      )
+    ))
+  }
+
+  if (nrow(best_effort_streams) == 0) {
+    return(draw_best_effort_placeholder(
+      "No GPS trace",
+      str_glue(
+        "{effort$peak_label} on {format(as.Date(effort$start_date_local), '%d %b')}"
+      )
+    ))
+  }
+
+  effort_streams <- best_effort_streams |>
+    filter(.data$duration_seconds == target_duration) |>
+    filter(!is.na(latitude), !is.na(longitude)) |>
+    arrange(stream_order)
+
+  if (nrow(effort_streams) < 2) {
+    return(draw_best_effort_placeholder(
+      "No GPS trace",
+      str_glue(
+        "{effort$peak_label} on {format(as.Date(effort$start_date_local), '%d %b')}"
+      )
+    ))
+  }
+
+  start_point <- slice_head(effort_streams, n = 1)
+  end_point <- slice_tail(effort_streams, n = 1)
+  lat_range <- range(effort_streams$latitude, na.rm = TRUE)
+  lng_range <- range(effort_streams$longitude, na.rm = TRUE)
+
+  leaflet() |>
+    addTiles(
+      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}.png',
+      attribution = paste(
+        '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+        '&copy; <a href="https://cartodb.com/attributions">CartoDB</a>'
+      )
+    ) |>
+    addPolylines(
+      data = effort_streams,
+      lat = ~latitude,
+      lng = ~longitude,
+      opacity = 0.75,
+      weight = 4,
+      color = "#0C2340"
+    ) |>
+    addCircleMarkers(
+      data = start_point,
+      lat = ~latitude,
+      lng = ~longitude,
+      radius = 5,
+      stroke = TRUE,
+      weight = 2,
+      color = "#18BC9C",
+      fillColor = "#18BC9C",
+      fillOpacity = 0.9,
+      popup = "Start"
+    ) |>
+    addCircleMarkers(
+      data = end_point,
+      lat = ~latitude,
+      lng = ~longitude,
+      radius = 5,
+      stroke = TRUE,
+      weight = 2,
+      color = "#E74C3C",
+      fillColor = "#E74C3C",
+      fillOpacity = 0.9,
+      popup = "End"
+    ) |>
+    fitBounds(
+      lng1 = lng_range[[1]],
+      lat1 = lat_range[[1]],
+      lng2 = lng_range[[2]],
+      lat2 = lat_range[[2]]
+    )
 }
 
 draw_rolling_activity_curve <- function(activity_summary, window_days = 28) {
@@ -442,8 +1019,10 @@ draw_activity_calendar <- function(activity_summary) {
       distance_mi = replace_na(distance_mi, 0),
       week = isoweek(start_date_local),
       weekday = wday(start_date_local, label = TRUE, week_start = 1),
-      hover_lbl = str_glue("{start_date_local}
-{round(distance_mi, 1)} mi")
+      hover_lbl = str_glue(
+        "{start_date_local}
+{round(distance_mi, 1)} mi"
+      )
     )
 
   calendar_plot <- calendar_tbl |>
@@ -593,8 +1172,10 @@ add_track <- function(
 }
 
 draw_map <- function(streams_tbl) {
-  streams_tbl <- streams_tbl |>
-    filter(sport_type == "Ride")
+  if ("sport_type" %in% names(streams_tbl)) {
+    streams_tbl <- streams_tbl |>
+      filter(sport_type == "Ride")
+  }
 
   if ("stream_order" %in% names(streams_tbl)) {
     streams_tbl <- streams_tbl |>

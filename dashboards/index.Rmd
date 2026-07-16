@@ -31,6 +31,34 @@ ytd_streams <- activity_streams |> filter(year(start_date_local) == year(Sys.Dat
 
 position_extremities <- get_position_extremities(ytd_streams)
 
+best_power_efforts <- get_ytd_best_power_efforts(con)
+
+best_power_effort_streams <- get_best_effort_streams(con, best_power_efforts)
+
+```
+
+```{css, echo=FALSE}
+#best-efforts .value-box {
+  min-height: 92px;
+}
+
+#best-efforts .value-box .inner {
+  padding: 10px 16px;
+}
+
+#best-efforts .value-box .value {
+  margin-bottom: 2px;
+}
+
+#best-efforts .value-box .caption {
+  margin-top: 0;
+}
+
+#best-efforts .value-box .icon {
+  top: 8px;
+  right: 14px;
+  font-size: 56px;
+}
 ```
 
 Summary
@@ -98,6 +126,63 @@ Row
 
 ```{r}
 draw_critical_metric_curve("power", con)
+```
+
+Best Efforts
+===================================== 
+
+Row {data-height=95}
+-----------------------------------------------------------------------
+
+###
+
+```{r}
+get_best_effort_valuebox(best_power_efforts, 600)
+```
+
+###
+
+```{r}
+get_best_effort_valuebox(best_power_efforts, 1200)
+```
+
+###
+
+```{r}
+get_best_effort_valuebox(best_power_efforts, 1800)
+```
+
+###
+
+```{r}
+get_best_effort_valuebox(best_power_efforts, 3600)
+```
+
+Row {data-height=840}
+-----------------------------------------------------------------------
+
+###
+
+```{r}
+draw_best_effort_detail(best_power_effort_streams, best_power_efforts, 600)
+```
+
+###
+
+```{r}
+draw_best_effort_detail(best_power_effort_streams, best_power_efforts, 1200)
+```
+
+###
+
+```{r}
+draw_best_effort_detail(best_power_effort_streams, best_power_efforts, 1800)
+```
+
+###
+
+```{r}
+draw_best_effort_detail(best_power_effort_streams, best_power_efforts, 3600)
 ```
 
 Trends
