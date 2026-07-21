@@ -23,6 +23,7 @@ get_streams <- function(con) {
     a.start_date_local,
     a.distance_metres, 
     a.moving_time_seconds, 
+    a.elevation_gain_metres,
     a.energy_kilojoules,
     s.latitude,
     s.longitude,
@@ -71,6 +72,7 @@ build_ytd_stats <- function(activity_streams) {
       start_date_local,
       distance_metres,
       moving_time_seconds,
+      elevation_gain_metres,
       energy_kilojoules,
     ) |>
     distinct() |>
@@ -78,6 +80,7 @@ build_ytd_stats <- function(activity_streams) {
       yr = year(start_date_local),
       yr_day = yday(start_date_local),
       distance_mi = distance_metres * 0.000621371,
+      elevation_gain_ft = elevation_gain_metres * 3.28084,
       is_ton = distance_mi >= 100,
       moving_time_hr = moving_time_seconds / 3600
     ) |>
@@ -85,6 +88,7 @@ build_ytd_stats <- function(activity_streams) {
     arrange(start_date_local) |>
     mutate(
       ytd_distance_mi = cumsum(distance_mi),
+      ytd_elevation_ft = cumsum(replace_na(elevation_gain_ft, 0)),
       ytd_tons = cumsum(is_ton),
       ytd_time_hr = cumsum(moving_time_hr),
       ytd_energy_kcal = cumsum(replace_na(energy_kilojoules, 0)),
@@ -106,6 +110,7 @@ build_ytd_stats <- function(activity_streams) {
     summarise(
       ytd_distance_mi = max(ytd_distance_mi),
       ytd_predicted_distance_mi = (ytd_distance_mi / yday(Sys.Date())) * 365,
+      ytd_elevation_ft = max(ytd_elevation_ft),
       ytd_tons = max(ytd_tons),
       is_ton_day = any(is_ton),
       ytd_time_hr = max(ytd_time_hr),
@@ -119,6 +124,7 @@ build_ytd_stats <- function(activity_streams) {
     group_by(yr) |>
     mutate(
       yr_distance_mi = max(ytd_distance_mi),
+      yr_elevation_ft = max(ytd_elevation_ft),
       yr_tons = max(ytd_tons),
       yr_time_hr = max(ytd_time_hr),
       yr_energy_kcal = max(ytd_energy_kcal)
@@ -233,6 +239,26 @@ get_ytd_valuebox <- function(
     icon = icon_str,
     color = "#EDF0F1"
   )
+}
+
+format_compact_axis_label <- function(values) {
+  as.character(case_when(
+    is.na(values) ~ NA_character_,
+    abs(values) >= 1e6 ~ str_glue("{round(values / 1e6, 1)}M"),
+    abs(values) >= 1e3 ~ str_glue("{round(values / 1e3, 0)}k"),
+    TRUE ~ as.character(round(values, 0))
+  ))
+}
+
+get_ytd_metric_display <- function(metric_to_plot) {
+  tibble::tribble(
+    ~metric            , ~label      , ~unit ,
+    "ytd_distance_mi"  , "Miles"     , "mi"  ,
+    "ytd_elevation_ft" , "Elevation" , "ft"  ,
+    "ytd_tons"         , "Tons"      , ""
+  ) |>
+    filter(.data$metric == metric_to_plot) |>
+    slice_head(n = 1)
 }
 
 build_activity_summary <- function(activity_streams) {
@@ -433,6 +459,7 @@ get_ytd_best_power_efforts <- function(
       INNER JOIN cycling_platform_silver.activities a
         ON abe.activity_id = a.activity_id
       WHERE abe.metric_name = 'watts'
+        AND abe.is_record_eligible = 1
         AND abe.duration_seconds IN ({durations_sql})
         AND YEAR(a.start_date_local) = YEAR(NOW())"
     )
@@ -592,6 +619,8 @@ add_elevation_gradient_fills <- function(elevation_plot, elevation_streams) {
 
   for (block_index in seq_len(nrow(gradient_blocks))) {
     block <- gradient_blocks[block_index, ]
+    block_fill_colour <- as.character(block$fill_colour[[1]])
+    block_hover_label <- as.character(block$hover_lbl[[1]])
 
     block_stream <- elevation_streams |>
       filter(
@@ -608,18 +637,18 @@ add_elevation_gradient_fills <- function(elevation_plot, elevation_streams) {
       tibble(
         effort_distance_mi = first(block_stream$effort_distance_mi),
         altitude_metres = 0,
-        hover_lbl = block$hover_lbl
+        hover_lbl = block_hover_label
       ),
       block_stream |>
         transmute(
           effort_distance_mi,
           altitude_metres,
-          hover_lbl = block$hover_lbl
+          hover_lbl = block_hover_label
         ),
       tibble(
         effort_distance_mi = last(block_stream$effort_distance_mi),
         altitude_metres = 0,
-        hover_lbl = block$hover_lbl
+        hover_lbl = block_hover_label
       )
     )
 
@@ -631,10 +660,11 @@ add_elevation_gradient_fills <- function(elevation_plot, elevation_streams) {
         type = "scatter",
         mode = "lines",
         fill = "toself",
-        fillcolor = block$fill_colour,
+        fillcolor = block_fill_colour,
         line = list(color = "rgba(0,0,0,0)", width = 0),
         text = ~hover_lbl,
-        hoverinfo = "text",
+        hovertemplate = "%{text}<extra></extra>",
+        name = "",
         showlegend = FALSE
       )
   }
@@ -1038,13 +1068,17 @@ draw_activity_calendar <- function(activity_summary) {
 }
 
 draw_ytd_curve <- function(metric_to_plot, ytd_stats) {
+  metric_display <- get_ytd_metric_display(metric_to_plot)
+  metric_unit <- if (nrow(metric_display) == 0) "" else metric_display$unit[[1]]
+
   ytd_tbl <- ytd_stats |>
     pivot_longer(c(matches("^ytd"), -ytd_val)) |>
     filter(name == metric_to_plot) |>
     mutate(
+      value_label = format_compact_axis_label(value),
       hover_lbl = str_glue(
         "{start_date_local}
-                                 N = {round(value, 1)}"
+                                 {value_label}{if_else(metric_unit == '', '', str_glue(' {metric_unit}'))}"
       ),
       activity_url = str_glue("https://www.strava.com/activities/{activity_id}")
     )
@@ -1054,6 +1088,7 @@ draw_ytd_curve <- function(metric_to_plot, ytd_stats) {
     geom_step(alpha = 0.5) +
     theme_minimal() +
     scale_colour_manual(values = c("pytd" = "grey85", "ytd" = "#0C2340")) +
+    scale_y_continuous(labels = format_compact_axis_label) +
     theme(legend.position = "none", axis.text.x = element_blank()) +
     labs(x = "", y = "")
 
@@ -1232,7 +1267,8 @@ draw_critical_metric_curve <- function(metric_to_plot, con) {
         INNER JOIN
           cycling_platform_silver.activities a
         ON abe.activity_id = a.activity_id
-        WHERE metric_name = ?
+        WHERE abe.is_record_eligible = 1
+        AND metric_name = ?
           "
 
   peaks_all_time <- DBI::dbGetQuery(
