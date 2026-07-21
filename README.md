@@ -38,7 +38,9 @@ source("runtime_helpers.R")
 install_cron_job()
 ```
 
-The cron entry runs `render_dashboard.R` directly and writes output to `dashboard_refresh.log`. The render script does not require or use a `cron` command-line argument.
+The cron entry runs `scripts/run_dashboard_refresh.sh`, which changes to the project root and feeds `render_dashboard.R` to `Rscript` through stdin. Output is written to `dashboard_refresh.log`. The render script does not require or use a `cron` command-line argument.
+
+The refresh log records the wrapper environment, R library paths, major render stages, git commands, elapsed times, and failure context. Start there when diagnosing unattended refresh failures.
 
 Re-run `install_cron_job()` after changing the repository path, R installation, or cron helper so the managed crontab block is regenerated.
 

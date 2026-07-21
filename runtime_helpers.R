@@ -4,11 +4,23 @@ log_message <- function(msg) {
     "%Y-%m-%d %H:%M:%S"
   )
 
-  message(
-    glue::glue(
-      "[{timestamp}] {msg}"
-    )
-  )
+  log_line <- glue::glue("[{timestamp}] {msg}")
+
+  message(log_line)
+
+  log_file <- Sys.getenv("DASHBOARD_LOG", "")
+
+  if (!nzchar(log_file)) {
+    project_root <- Sys.getenv("RENV_PROJECT", "")
+
+    if (nzchar(project_root)) {
+      log_file <- file.path(project_root, "dashboard_refresh.log")
+    }
+  }
+
+  if (nzchar(log_file)) {
+    cat(log_line, "\n", file = log_file, append = TRUE)
+  }
 
   flush.console()
 }
@@ -19,12 +31,6 @@ install_cron_job <- function(project_path = getwd()) {
   if (schedule == "") {
     stop("DASHBOARD_REFRESH_SCHEDULE environment variable not set.")
   }
-
-  dashboard_path <- normalizePath(
-    file.path(project_path, "render_dashboard.R"),
-    winslash = "/",
-    mustWork = TRUE
-  )
 
   dashboard_runner_path <- normalizePath(
     file.path(project_path, "scripts", "run_dashboard_refresh.sh"),
@@ -38,14 +44,8 @@ install_cron_job <- function(project_path = getwd()) {
     mustWork = TRUE
   )
 
-  log_path <- normalizePath(
-    file.path(project_path, "dashboard_refresh.log"),
-    winslash = "/",
-    mustWork = FALSE
-  )
-
-  rscript_path <- normalizePath(
-    file.path(R.home("bin"), "Rscript"),
+  normalizePath(
+    file.path(project_path, "render_dashboard.R"),
     winslash = "/",
     mustWork = TRUE
   )
@@ -78,7 +78,7 @@ install_cron_job <- function(project_path = getwd()) {
     start_string,
     "## desc: Cycling Analytics dashboard refresh",
     glue::glue(
-      "{schedule} cd '{project_path}' && RENV_PROJECT='{project_path}' RSCRIPT='{rscript_path}' DASHBOARD_SCRIPT='{dashboard_path}' DASHBOARD_LOG='{log_path}' '{dashboard_runner_path}'"
+      "{schedule} '{dashboard_runner_path}'"
     ),
     end_string
   )
@@ -95,10 +95,35 @@ install_cron_job <- function(project_path = getwd()) {
     cron_file
   )
 
-  system2(
+  crontab_output <- suppressWarnings(system2(
     "crontab",
-    args = cron_file
+    args = cron_file,
+    stdout = TRUE,
+    stderr = TRUE
+  ))
+
+  crontab_status <- attr(
+    crontab_output,
+    "status",
+    exact = TRUE
   )
+
+  if (is.null(crontab_status)) {
+    crontab_status <- 0L
+  }
+
+  if (!identical(crontab_status, 0L)) {
+    stop(
+      "crontab install failed with status ",
+      crontab_status,
+      if (length(crontab_output) > 0) {
+        paste0(":\n", paste(crontab_output, collapse = "\n"))
+      } else {
+        ""
+      },
+      call. = FALSE
+    )
+  }
 
   log_message(
     glue::glue(
@@ -173,6 +198,13 @@ publish_to_git <- function(
   commit_msg = "auto commit from cron / Rscript"
 ) {
   run_git <- function(args) {
+    started_at <- Sys.time()
+    command <- paste(c("git", args), collapse = " ")
+
+    log_message(glue::glue(
+      "Git command started: cwd={git_path}; command={command}"
+    ))
+
     result <- suppressWarnings(
       withr::with_dir(
         git_path,
@@ -189,6 +221,10 @@ publish_to_git <- function(
     if (is.null(status)) {
       status <- 0
     }
+
+    log_message(glue::glue(
+      "Git command finished: status={status}; elapsed_seconds={round(as.numeric(difftime(Sys.time(), started_at, units = 'secs')), 1)}; command={command}"
+    ))
 
     list(output = result, status = status)
   }

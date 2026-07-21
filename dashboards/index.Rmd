@@ -13,28 +13,39 @@ output:
 libs <- c("flexdashboard","tidyverse","plotly","leaflet","leaflet.extras","lubridate","mapdata")
 purrr::walk(libs, ~library(.,character.only = T))
 
-con <- connect_db()
+dashboard_stage <- function(stage_name, expr) {
+  if (exists("run_dashboard_stage", mode = "function")) {
+    run_dashboard_stage(stage_name, expr)
+  } else {
+    force(expr)
+  }
+}
 
-activity_streams <- get_streams(con)
+con <- dashboard_stage("Connect database", {
+  connect_db()
+})
 
-activity_summary <- build_activity_summary(activity_streams)
+dashboard_stage("Load data", {
+  activity_streams <- get_streams(con)
 
-tbr_streams <- get_tbr_streams(con)
+  activity_summary <- build_activity_summary(activity_streams)
 
-tbr_activities <- tbr_streams |> 
-  select(activity_id:moving_time_seconds) |> 
-  distinct()
+  tbr_streams <- get_tbr_streams(con)
 
-ytd_stats <- build_ytd_stats(activity_streams)
+  tbr_activities <- tbr_streams |> 
+    select(activity_id:moving_time_seconds) |> 
+    distinct()
 
-ytd_streams <- activity_streams |> filter(year(start_date_local) == year(Sys.Date()))
+  ytd_stats <- build_ytd_stats(activity_streams)
 
-position_extremities <- get_position_extremities(ytd_streams)
+  ytd_streams <- activity_streams |> filter(year(start_date_local) == year(Sys.Date()))
 
-best_power_efforts <- get_ytd_best_power_efforts(con)
+  position_extremities <- get_position_extremities(ytd_streams)
 
-best_power_effort_streams <- get_best_effort_streams(con, best_power_efforts)
+  best_power_efforts <- get_ytd_best_power_efforts(con)
 
+  best_power_effort_streams <- get_best_effort_streams(con, best_power_efforts)
+})
 ```
 
 ```{css, echo=FALSE}
@@ -107,10 +118,16 @@ get_ytd_valuebox("ytd_longest_ride", ytd_stats)
 Row 
 -----------------------------------------------------------------------
 
-### `r str_glue("Miles (vs {year(Sys.Date()) - 1})")`
+### `r str_glue("Miles, mi (vs {year(Sys.Date()) - 1})")`
 
 ```{r}
 draw_ytd_curve("ytd_distance_mi", ytd_stats)
+```
+
+### `r str_glue("Elevation, ft (vs {year(Sys.Date()) - 1})")`
+
+```{r}
+draw_ytd_curve("ytd_elevation_ft", ytd_stats)
 ```
 
 ### `r str_glue("Tons (vs {year(Sys.Date()) - 1})")`
