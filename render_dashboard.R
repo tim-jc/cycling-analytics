@@ -28,17 +28,33 @@ dashboard_log <- function(msg) {
 
   message(log_lines)
 
+  if (identical(Sys.getenv("DASHBOARD_LOG_REDIRECTED", ""), "TRUE")) {
+    flush.console()
+    return(invisible(TRUE))
+  }
+
   log_file <- tryCatch(
     dashboard_log_path(),
     error = function(e) NA_character_
   )
 
   if (!is.na(log_file) && nzchar(log_file)) {
-    cat(
-      paste(log_lines, collapse = "\n"),
-      "\n",
-      file = log_file,
-      append = TRUE
+    tryCatch(
+      suppressWarnings(
+        cat(
+          paste(log_lines, collapse = "\n"),
+          "\n",
+          file = log_file,
+          append = TRUE
+        )
+      ),
+      error = function(e) {
+        message(sprintf(
+          "[%s] Log file append skipped: %s",
+          dashboard_timestamp(),
+          conditionMessage(e)
+        ))
+      }
     )
   }
 
@@ -93,6 +109,20 @@ run_dashboard_stage <- function(stage_name, expr) {
 }
 
 get_project_root <- function() {
+  configured_project <- Sys.getenv("CYCLING_ANALYTICS_PROJECT_DIR", "")
+
+  if (!nzchar(configured_project)) {
+    configured_project <- Sys.getenv("RENV_PROJECT", "")
+  }
+
+  if (nzchar(configured_project)) {
+    return(normalizePath(
+      configured_project,
+      winslash = "/",
+      mustWork = TRUE
+    ))
+  }
+
   file_arg <- grep(
     "^--file=",
     commandArgs(trailingOnly = FALSE),
@@ -101,6 +131,14 @@ get_project_root <- function() {
 
   if (length(file_arg) > 0) {
     script_path <- sub("^--file=", "", file_arg[[1]])
+
+    if (identical(script_path, "-")) {
+      return(normalizePath(
+        getwd(),
+        winslash = "/",
+        mustWork = TRUE
+      ))
+    }
 
     return(dirname(normalizePath(
       script_path,
@@ -178,7 +216,7 @@ get_publish_summary <- function(publish_result) {
   "Publish: no dashboard changes"
 }
 
-build_success_notification <- function(render_env, publish_result, rendered_at) {
+build_notification_context <- function(render_env, rendered_at) {
   ytd_stats <- render_env$ytd_stats
 
   ytd_distance <- get_ytd_values("distance_mi", ytd_stats)[["ytd"]]
@@ -198,8 +236,22 @@ build_success_notification <- function(render_env, publish_result, rendered_at) 
       "YTD: {format_dashboard_number(ytd_distance)} mi | {format_dashboard_number(ytd_tons)} tons | {format_dashboard_number(ytd_hours)} hr"
     ),
     get_latest_ride_summary(render_env$activity_streams),
-    get_publish_summary(publish_result),
     glue::glue("Next refresh: {next_run_text}"),
+    sep = "\n"
+  )
+}
+
+build_success_notification <- function(render_env, publish_result, rendered_at) {
+  context_lines <- strsplit(
+    build_notification_context(render_env, rendered_at),
+    "\n",
+    fixed = TRUE
+  )[[1]]
+
+  paste(
+    context_lines[seq_len(3)],
+    get_publish_summary(publish_result),
+    context_lines[4],
     sep = "\n"
   )
 }
@@ -323,12 +375,44 @@ main <- function() {
   })
 
   # Push updated dashboard to git
-  publish_result <- run_dashboard_stage("Publish to Git", {
-    publish_to_git(git_path = project_root)
-  })
+  publish_result <- if (identical(Sys.getenv("DASHBOARD_SKIP_PUBLISH", ""), "TRUE")) {
+    run_dashboard_stage("Publish to Git", {
+      dashboard_log("Publish skipped by DASHBOARD_SKIP_PUBLISH=TRUE.")
+      list(
+        committed = FALSE,
+        pushed = FALSE,
+        commit = NA_character_,
+        skipped = TRUE
+      )
+    })
+  } else {
+    run_dashboard_stage("Publish to Git", {
+      publish_to_git(git_path = project_root)
+    })
+  }
 
   # Send notification
-  run_dashboard_stage("Notify", {
+  if (identical(Sys.getenv("DASHBOARD_SKIP_NOTIFY", ""), "TRUE")) {
+    run_dashboard_stage("Notify", {
+      notification_context_file <- Sys.getenv(
+        "DASHBOARD_NOTIFICATION_CONTEXT_FILE",
+        ""
+      )
+
+      if (nzchar(notification_context_file)) {
+        writeLines(
+          build_notification_context(render_env, Sys.time()),
+          notification_context_file
+        )
+        dashboard_log(glue::glue(
+          "Notification context written to {notification_context_file}."
+        ))
+      }
+
+      dashboard_log("Notification skipped by DASHBOARD_SKIP_NOTIFY=TRUE.")
+    })
+  } else {
+    run_dashboard_stage("Notify", {
     ntfy_msg <- build_success_notification(
       render_env,
       publish_result,
@@ -352,7 +436,8 @@ main <- function() {
       msg_title = msg_title,
       msg_tags = msg_tags
     )
-  })
+    })
+  }
 
   run_dashboard_stage("Complete", {
     log_message("Dashboard refresh complete.")

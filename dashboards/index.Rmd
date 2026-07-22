@@ -124,10 +124,10 @@ Row
 draw_ytd_curve("ytd_distance_mi", ytd_stats)
 ```
 
-### `r str_glue("Elevation, ft (vs {year(Sys.Date()) - 1})")`
+### `r str_glue("Elevation, m (vs {year(Sys.Date()) - 1})")`
 
 ```{r}
-draw_ytd_curve("ytd_elevation_ft", ytd_stats)
+draw_ytd_curve("ytd_elevation_m", ytd_stats)
 ```
 
 ### `r str_glue("Tons (vs {year(Sys.Date()) - 1})")`

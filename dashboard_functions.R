@@ -80,7 +80,7 @@ build_ytd_stats <- function(activity_streams) {
       yr = year(start_date_local),
       yr_day = yday(start_date_local),
       distance_mi = distance_metres * 0.000621371,
-      elevation_gain_ft = elevation_gain_metres * 3.28084,
+      elevation_gain_m = elevation_gain_metres,
       is_ton = distance_mi >= 100,
       moving_time_hr = moving_time_seconds / 3600
     ) |>
@@ -88,7 +88,7 @@ build_ytd_stats <- function(activity_streams) {
     arrange(start_date_local) |>
     mutate(
       ytd_distance_mi = cumsum(distance_mi),
-      ytd_elevation_ft = cumsum(replace_na(elevation_gain_ft, 0)),
+      ytd_elevation_m = cumsum(replace_na(elevation_gain_m, 0)),
       ytd_tons = cumsum(is_ton),
       ytd_time_hr = cumsum(moving_time_hr),
       ytd_energy_kcal = cumsum(replace_na(energy_kilojoules, 0)),
@@ -110,7 +110,7 @@ build_ytd_stats <- function(activity_streams) {
     summarise(
       ytd_distance_mi = max(ytd_distance_mi),
       ytd_predicted_distance_mi = (ytd_distance_mi / yday(Sys.Date())) * 365,
-      ytd_elevation_ft = max(ytd_elevation_ft),
+      ytd_elevation_m = max(ytd_elevation_m),
       ytd_tons = max(ytd_tons),
       is_ton_day = any(is_ton),
       ytd_time_hr = max(ytd_time_hr),
@@ -124,7 +124,7 @@ build_ytd_stats <- function(activity_streams) {
     group_by(yr) |>
     mutate(
       yr_distance_mi = max(ytd_distance_mi),
-      yr_elevation_ft = max(ytd_elevation_ft),
+      yr_elevation_m = max(ytd_elevation_m),
       yr_tons = max(ytd_tons),
       yr_time_hr = max(ytd_time_hr),
       yr_energy_kcal = max(ytd_energy_kcal)
@@ -254,7 +254,7 @@ get_ytd_metric_display <- function(metric_to_plot) {
   tibble::tribble(
     ~metric            , ~label      , ~unit ,
     "ytd_distance_mi"  , "Miles"     , "mi"  ,
-    "ytd_elevation_ft" , "Elevation" , "ft"  ,
+    "ytd_elevation_m"  , "Elevation" , "m"   ,
     "ytd_tons"         , "Tons"      , ""
   ) |>
     filter(.data$metric == metric_to_plot) |>
