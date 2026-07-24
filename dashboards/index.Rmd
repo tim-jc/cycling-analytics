@@ -205,7 +205,7 @@ draw_best_effort_detail(best_power_effort_streams, best_power_efforts, 3600)
 Trends
 ===================================== 
 
-Row
+Row {data-height=150}
 -----------------------------------------------------------------------
 
 ### Latest outdoor ride
@@ -232,22 +232,13 @@ get_goal_pace_valuebox(ytd_stats)
 get_ride_mix_valuebox(activity_summary)
 ```
 
-Row
+Row {data-height=850}
 -----------------------------------------------------------------------
 
-### Rolling 28 day distance
+### Recent weekly training volume
 
 ```{r}
-draw_rolling_activity_curve(activity_summary)
-```
-
-Row
------------------------------------------------------------------------
-
-### Daily distance calendar
-
-```{r}
-draw_activity_calendar(activity_summary)
+draw_weekly_training_volume(activity_summary)
 ```
 
 Map

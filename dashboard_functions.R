@@ -269,13 +269,15 @@ build_activity_summary <- function(activity_streams) {
       start_date_local,
       distance_metres,
       moving_time_seconds,
+      elevation_gain_metres,
       energy_kilojoules
     ) |>
     distinct() |>
     mutate(
       start_date_local = as.Date(start_date_local),
       distance_mi = distance_metres * 0.000621371,
-      moving_time_hr = moving_time_seconds / 3600
+      moving_time_hr = moving_time_seconds / 3600,
+      elevation_gain_m = elevation_gain_metres
     )
 }
 
@@ -603,10 +605,7 @@ build_elevation_gradient_blocks <- function(
     ) |>
     filter(block_distance_metres >= min_block_metres) |>
     mutate(
-      fill_colour = get_gradient_fill_colour(gradient_percent),
-      hover_lbl = str_glue(
-        "{round(block_start_mi, 2)}-{round(block_end_mi, 2)} mi<br>{round(gradient_percent, 1)}%"
-      )
+      fill_colour = get_gradient_fill_colour(gradient_percent)
     )
 }
 
@@ -620,8 +619,6 @@ add_elevation_gradient_fills <- function(elevation_plot, elevation_streams) {
   for (block_index in seq_len(nrow(gradient_blocks))) {
     block <- gradient_blocks[block_index, ]
     block_fill_colour <- as.character(block$fill_colour[[1]])
-    block_hover_label <- as.character(block$hover_lbl[[1]])
-
     block_stream <- elevation_streams |>
       filter(
         effort_distance_mi >= block$block_start_mi,
@@ -636,19 +633,16 @@ add_elevation_gradient_fills <- function(elevation_plot, elevation_streams) {
     polygon_tbl <- bind_rows(
       tibble(
         effort_distance_mi = first(block_stream$effort_distance_mi),
-        altitude_metres = 0,
-        hover_lbl = block_hover_label
+        altitude_metres = 0
       ),
       block_stream |>
         transmute(
           effort_distance_mi,
-          altitude_metres,
-          hover_lbl = block_hover_label
+          altitude_metres
         ),
       tibble(
         effort_distance_mi = last(block_stream$effort_distance_mi),
-        altitude_metres = 0,
-        hover_lbl = block_hover_label
+        altitude_metres = 0
       )
     )
 
@@ -662,8 +656,7 @@ add_elevation_gradient_fills <- function(elevation_plot, elevation_streams) {
         fill = "toself",
         fillcolor = block_fill_colour,
         line = list(color = "rgba(0,0,0,0)", width = 0),
-        text = ~hover_lbl,
-        hovertemplate = "%{text}<extra></extra>",
+        hoverinfo = "skip",
         name = "",
         showlegend = FALSE
       )
@@ -1030,41 +1023,170 @@ draw_rolling_activity_curve <- function(activity_summary, window_days = 28) {
     )
 }
 
-draw_activity_calendar <- function(activity_summary) {
-  calendar_tbl <- activity_summary |>
-    filter(year(start_date_local) == year(Sys.Date())) |>
-    group_by(start_date_local) |>
-    summarise(distance_mi = sum(distance_mi), .groups = "drop") |>
+draw_weekly_training_volume <- function(
+  activity_summary,
+  completed_weeks = 12
+) {
+  current_week <- floor_date(Sys.Date(), "week", week_start = 1)
+  first_week <- current_week - weeks(completed_weeks)
+
+  weekly_totals <- activity_summary |>
+    filter(start_date_local >= first_week) |>
+    mutate(week_start = floor_date(start_date_local, "week", week_start = 1)) |>
+    group_by(week_start) |>
+    summarise(
+      distance_mi = sum(replace_na(distance_mi, 0)),
+      moving_time_hr = sum(replace_na(moving_time_hr, 0)),
+      energy_kilojoules = sum(replace_na(energy_kilojoules, 0)),
+      elevation_gain_m = sum(replace_na(elevation_gain_m, 0)),
+      .groups = "drop"
+    ) |>
     right_join(
       tibble(
-        start_date_local = seq.Date(
-          floor_date(Sys.Date(), "year"),
-          Sys.Date(),
-          "days"
-        )
+        week_start = seq.Date(first_week, current_week, by = "week")
       ),
-      by = "start_date_local"
+      by = "week_start"
     ) |>
+    arrange(week_start) |>
     mutate(
-      distance_mi = replace_na(distance_mi, 0),
-      week = isoweek(start_date_local),
-      weekday = wday(start_date_local, label = TRUE, week_start = 1),
-      hover_lbl = str_glue(
-        "{start_date_local}
-{round(distance_mi, 1)} mi"
-      )
+      across(
+        c(
+          distance_mi,
+          moving_time_hr,
+          energy_kilojoules,
+          elevation_gain_m
+        ),
+        ~ replace_na(.x, 0)
+      ),
+      is_current_week = week_start == current_week
     )
 
-  calendar_plot <- calendar_tbl |>
-    ggplot(aes(x = week, y = weekday, fill = distance_mi, text = hover_lbl)) +
-    geom_tile(color = "white", linewidth = 0.2) +
-    scale_fill_gradient(low = "grey95", high = "#0C2340") +
-    scale_y_discrete(limits = rev) +
-    theme_minimal() +
-    theme(legend.position = "none") +
-    labs(x = "ISO week number", y = "")
+  metric_spec <- tribble(
+    ~metric,              ~title,         ~unit, ~digits,
+    "distance_mi",        "Distance",     "mi",        0,
+    "moving_time_hr",     "Time",         "hr",        1,
+    "energy_kilojoules",  "Work",         "kJ",        0,
+    "elevation_gain_m",   "Elevation",    "m",         0
+  )
 
-  plotly::ggplotly(calendar_plot, tooltip = "text")
+  build_metric_plot <- function(metric, title, unit, digits) {
+    values <- weekly_totals[[metric]]
+    four_week_average <- vapply(
+      seq_along(values),
+      function(index) {
+        mean(values[seq.int(max(1, index - 3), index)])
+      },
+      numeric(1)
+    )
+    prior_four_week_average <- vapply(
+      seq_along(values),
+      function(index) {
+        if (index == 1) {
+          return(NA_real_)
+        }
+
+        mean(values[seq.int(max(1, index - 4), index - 1)])
+      },
+      numeric(1)
+    )
+    comparison <- if_else(
+      is.na(prior_four_week_average) | prior_four_week_average == 0,
+      "",
+      str_glue(
+        "<br>{if_else(values >= prior_four_week_average, '+', '')}{round(100 * (values / prior_four_week_average - 1))}% vs prior 4wk avg"
+      )
+    )
+    week_label <- if_else(
+      weekly_totals$is_current_week,
+      str_glue(
+        "{format(weekly_totals$week_start, '%d %b')} (so far)"
+      ),
+      str_glue(
+        "{format(weekly_totals$week_start, '%d %b')}-{format(weekly_totals$week_start + days(6), '%d %b')}"
+      )
+    )
+    hover_label <- str_glue(
+      "{week_label}<br>{title}: {format(round(values, digits), big.mark = ',', nsmall = digits)} {unit}{comparison}"
+    )
+
+    plotly::plot_ly() |>
+      plotly::add_bars(
+        x = weekly_totals$week_start,
+        y = values,
+        marker = list(
+          color = if_else(
+            weekly_totals$is_current_week,
+            "rgba(12, 35, 64, 0.35)",
+            "rgba(12, 35, 64, 0.82)"
+          )
+        ),
+        text = hover_label,
+        textposition = "none",
+        hovertemplate = "%{text}<extra></extra>",
+        showlegend = FALSE
+      ) |>
+      plotly::add_lines(
+        x = weekly_totals$week_start,
+        y = four_week_average,
+        line = list(color = "#E67E22", width = 2),
+        hoverinfo = "skip",
+        showlegend = FALSE
+      ) |>
+      plotly::layout(
+        xaxis = list(
+          title = "",
+          tickformat = "%d %b",
+          dtick = 14 * 24 * 60 * 60 * 1000
+        ),
+        yaxis = list(title = unit, rangemode = "tozero")
+      )
+  }
+
+  plots <- pmap(metric_spec, build_metric_plot)
+
+  plotly::subplot(
+    plots,
+    nrows = 2,
+    shareX = TRUE,
+    titleX = TRUE,
+    titleY = TRUE,
+    margin = 0.08
+  ) |>
+    plotly::layout(
+      showlegend = FALSE,
+      margin = list(l = 55, r = 20, t = 45, b = 45),
+      hovermode = "closest",
+      annotations = list(
+        list(
+          text = "Distance",
+          x = 0.23, y = 1.04,
+          xref = "paper", yref = "paper",
+          showarrow = FALSE,
+          font = list(size = 14)
+        ),
+        list(
+          text = "Time",
+          x = 0.77, y = 1.04,
+          xref = "paper", yref = "paper",
+          showarrow = FALSE,
+          font = list(size = 14)
+        ),
+        list(
+          text = "Work",
+          x = 0.23, y = 0.48,
+          xref = "paper", yref = "paper",
+          showarrow = FALSE,
+          font = list(size = 14)
+        ),
+        list(
+          text = "Elevation",
+          x = 0.77, y = 0.48,
+          xref = "paper", yref = "paper",
+          showarrow = FALSE,
+          font = list(size = 14)
+        )
+      )
+    )
 }
 
 draw_ytd_curve <- function(metric_to_plot, ytd_stats) {
