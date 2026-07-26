@@ -232,13 +232,34 @@ get_goal_pace_valuebox(ytd_stats)
 get_ride_mix_valuebox(activity_summary)
 ```
 
-Row {data-height=850}
+Row {data-height=425}
 -----------------------------------------------------------------------
 
-### Recent weekly training volume
+### Weekly distance
 
 ```{r}
-draw_weekly_training_volume(activity_summary)
+draw_weekly_training_volume(activity_summary, "distance_mi")
+```
+
+### Weekly time
+
+```{r}
+draw_weekly_training_volume(activity_summary, "moving_time_hr")
+```
+
+Row {data-height=425}
+-----------------------------------------------------------------------
+
+### Weekly work
+
+```{r}
+draw_weekly_training_volume(activity_summary, "energy_kilojoules")
+```
+
+### Weekly elevation
+
+```{r}
+draw_weekly_training_volume(activity_summary, "elevation_gain_m")
 ```
 
 Map

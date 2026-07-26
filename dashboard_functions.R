@@ -1025,6 +1025,7 @@ draw_rolling_activity_curve <- function(activity_summary, window_days = 28) {
 
 draw_weekly_training_volume <- function(
   activity_summary,
+  metric,
   completed_weeks = 12
 ) {
   current_week <- floor_date(Sys.Date(), "week", week_start = 1)
@@ -1062,130 +1063,93 @@ draw_weekly_training_volume <- function(
     )
 
   metric_spec <- tribble(
-    ~metric,              ~title,         ~unit, ~digits,
-    "distance_mi",        "Distance",     "mi",        0,
-    "moving_time_hr",     "Time",         "hr",        1,
-    "energy_kilojoules",  "Work",         "kJ",        0,
-    "elevation_gain_m",   "Elevation",    "m",         0
-  )
+    ~metric,             ~title,      ~unit, ~digits,
+    "distance_mi",       "Distance",  "mi",        0,
+    "moving_time_hr",    "Time",      "hr",        1,
+    "energy_kilojoules", "Work",      "kJ",        0,
+    "elevation_gain_m",  "Elevation", "m",         0
+  ) |>
+    filter(.data$metric == !!metric)
 
-  build_metric_plot <- function(metric, title, unit, digits) {
-    values <- weekly_totals[[metric]]
-    four_week_average <- vapply(
-      seq_along(values),
-      function(index) {
-        mean(values[seq.int(max(1, index - 3), index)])
-      },
-      numeric(1)
-    )
-    prior_four_week_average <- vapply(
-      seq_along(values),
-      function(index) {
-        if (index == 1) {
-          return(NA_real_)
-        }
-
-        mean(values[seq.int(max(1, index - 4), index - 1)])
-      },
-      numeric(1)
-    )
-    comparison <- if_else(
-      is.na(prior_four_week_average) | prior_four_week_average == 0,
-      "",
-      str_glue(
-        "<br>{if_else(values >= prior_four_week_average, '+', '')}{round(100 * (values / prior_four_week_average - 1))}% vs prior 4wk avg"
-      )
-    )
-    week_label <- if_else(
-      weekly_totals$is_current_week,
-      str_glue(
-        "{format(weekly_totals$week_start, '%d %b')} (so far)"
-      ),
-      str_glue(
-        "{format(weekly_totals$week_start, '%d %b')}-{format(weekly_totals$week_start + days(6), '%d %b')}"
-      )
-    )
-    hover_label <- str_glue(
-      "{week_label}<br>{title}: {format(round(values, digits), big.mark = ',', nsmall = digits)} {unit}{comparison}"
-    )
-
-    plotly::plot_ly() |>
-      plotly::add_bars(
-        x = weekly_totals$week_start,
-        y = values,
-        marker = list(
-          color = if_else(
-            weekly_totals$is_current_week,
-            "rgba(12, 35, 64, 0.35)",
-            "rgba(12, 35, 64, 0.82)"
-          )
-        ),
-        text = hover_label,
-        textposition = "none",
-        hovertemplate = "%{text}<extra></extra>",
-        showlegend = FALSE
-      ) |>
-      plotly::add_lines(
-        x = weekly_totals$week_start,
-        y = four_week_average,
-        line = list(color = "#E67E22", width = 2),
-        hoverinfo = "skip",
-        showlegend = FALSE
-      ) |>
-      plotly::layout(
-        xaxis = list(
-          title = "",
-          tickformat = "%d %b",
-          dtick = 14 * 24 * 60 * 60 * 1000
-        ),
-        yaxis = list(title = unit, rangemode = "tozero")
-      )
+  if (nrow(metric_spec) == 0) {
+    stop("Unknown weekly training-volume metric: ", metric, call. = FALSE)
   }
 
-  plots <- pmap(metric_spec, build_metric_plot)
+  title <- metric_spec$title[[1]]
+  unit <- metric_spec$unit[[1]]
+  digits <- metric_spec$digits[[1]]
+  values <- weekly_totals[[metric]]
 
-  plotly::subplot(
-    plots,
-    nrows = 2,
-    shareX = TRUE,
-    titleX = TRUE,
-    titleY = TRUE,
-    margin = 0.08
-  ) |>
+  four_week_average <- vapply(
+    seq_along(values),
+    function(index) {
+      mean(values[seq.int(max(1, index - 3), index)])
+    },
+    numeric(1)
+  )
+  prior_four_week_average <- vapply(
+    seq_along(values),
+    function(index) {
+      if (index == 1) {
+        return(NA_real_)
+      }
+
+      mean(values[seq.int(max(1, index - 4), index - 1)])
+    },
+    numeric(1)
+  )
+  comparison <- if_else(
+    is.na(prior_four_week_average) | prior_four_week_average == 0,
+    "",
+    str_glue(
+      "<br>{if_else(values >= prior_four_week_average, '+', '')}{round(100 * (values / prior_four_week_average - 1))}% vs prior 4wk avg"
+    )
+  )
+  week_label <- if_else(
+    weekly_totals$is_current_week,
+    str_glue("{format(weekly_totals$week_start, '%d %b')} (so far)"),
+    str_glue(
+      "{format(weekly_totals$week_start, '%d %b')}-{format(weekly_totals$week_start + days(6), '%d %b')}"
+    )
+  )
+  hover_label <- str_glue(
+    "{week_label}<br>{title}: {format(round(values, digits), big.mark = ',', nsmall = digits)} {unit}{comparison}"
+  )
+
+  plotly::plot_ly() |>
+    plotly::add_bars(
+      x = weekly_totals$week_start,
+      y = values,
+      marker = list(
+        color = if_else(
+          weekly_totals$is_current_week,
+          "rgba(151, 199, 211, 0.32)",
+          "rgba(151, 199, 211, 0.68)"
+        ),
+        line = list(color = "#0C2340", width = 1.4)
+      ),
+      text = hover_label,
+      textposition = "none",
+      hovertemplate = "%{text}<extra></extra>",
+      showlegend = FALSE
+    ) |>
+    plotly::add_lines(
+      x = weekly_totals$week_start,
+      y = four_week_average,
+      line = list(color = "#E67E22", width = 2),
+      hoverinfo = "skip",
+      showlegend = FALSE
+    ) |>
     plotly::layout(
       showlegend = FALSE,
-      margin = list(l = 55, r = 20, t = 45, b = 45),
+      margin = list(l = 55, r = 20, t = 10, b = 45),
       hovermode = "closest",
-      annotations = list(
-        list(
-          text = "Distance",
-          x = 0.23, y = 1.04,
-          xref = "paper", yref = "paper",
-          showarrow = FALSE,
-          font = list(size = 14)
-        ),
-        list(
-          text = "Time",
-          x = 0.77, y = 1.04,
-          xref = "paper", yref = "paper",
-          showarrow = FALSE,
-          font = list(size = 14)
-        ),
-        list(
-          text = "Work",
-          x = 0.23, y = 0.48,
-          xref = "paper", yref = "paper",
-          showarrow = FALSE,
-          font = list(size = 14)
-        ),
-        list(
-          text = "Elevation",
-          x = 0.77, y = 0.48,
-          xref = "paper", yref = "paper",
-          showarrow = FALSE,
-          font = list(size = 14)
-        )
-      )
+      xaxis = list(
+        title = "",
+        tickformat = "%d %b",
+        dtick = 14 * 24 * 60 * 60 * 1000
+      ),
+      yaxis = list(title = unit, rangemode = "tozero")
     )
 }
 
