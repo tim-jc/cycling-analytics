@@ -12,8 +12,10 @@ PUBLISH_COMMIT=""
 NOTIFICATION_CONTEXT_FILE=""
 
 export PATH="/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
-export LANG="${LANG:-en_GB.UTF-8}"
-export LC_ALL="${LC_ALL:-en_GB.UTF-8}"
+# Respect an injected locale. C.UTF-8 is a common Linux-safe default and avoids
+# requiring a particular macOS regional locale.
+export LANG="${LANG:-C.UTF-8}"
+export LC_ALL="${LC_ALL:-${LANG}}"
 
 log() {
   printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "${LOG_FILE}"
@@ -28,6 +30,7 @@ elapsed_seconds() {
 }
 
 release_lock() {
+  rm -f "${LOCK_DIR}/pid" 2>/dev/null || true
   rmdir "${LOCK_DIR}" 2>/dev/null || true
 }
 
@@ -303,11 +306,27 @@ if [[ ! -r "${RENDER_SCRIPT}" ]]; then
 fi
 
 if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
-  log "Stage=Initialise status=skipped elapsed_seconds=$(elapsed_seconds "${initialise_started_at}") cwd=$(pwd)"
-  log "Another dashboard refresh appears to be active: ${LOCK_DIR}"
-  exit 0
+  lock_pid=""
+  if [[ -r "${LOCK_DIR}/pid" ]]; then
+    lock_pid="$(cat "${LOCK_DIR}/pid" 2>/dev/null || true)"
+  fi
+
+  if [[ "${lock_pid}" =~ ^[0-9]+$ ]] && kill -0 "${lock_pid}" 2>/dev/null; then
+    log "Stage=Initialise status=skipped elapsed_seconds=$(elapsed_seconds "${initialise_started_at}") cwd=$(pwd)"
+    log "Another dashboard refresh is active: lock=${LOCK_DIR}; pid=${lock_pid}"
+    exit 0
+  fi
+
+  log "Removing stale dashboard refresh lock: lock=${LOCK_DIR}; pid=${lock_pid:-unknown}"
+  rm -f "${LOCK_DIR}/pid" 2>/dev/null || true
+  if ! rmdir "${LOCK_DIR}" 2>/dev/null || ! mkdir "${LOCK_DIR}" 2>/dev/null; then
+    log "Stage=Initialise status=failed elapsed_seconds=$(elapsed_seconds "${initialise_started_at}") exit_code=1 cwd=$(pwd)"
+    log "Unable to recover stale dashboard refresh lock: ${LOCK_DIR}"
+    exit 1
+  fi
 fi
 
+printf '%s\n' "$$" > "${LOCK_DIR}/pid"
 trap cleanup_on_exit EXIT
 
 cd "${PROJECT_DIR}" || {
@@ -324,7 +343,9 @@ fi
 
 export RENV_PROJECT="${RUNTIME_PROJECT_DIR}"
 export CYCLING_ANALYTICS_PROJECT_DIR="${RUNTIME_PROJECT_DIR}"
+export CYCLING_ANALYTICS_OUTPUT_DIR="${RUNTIME_PROJECT_DIR}/docs"
 export RENV_CONFIG_SANDBOX_ENABLED="${RENV_CONFIG_SANDBOX_ENABLED:-FALSE}"
+export CYCLING_ANALYTICS_RUN_MODE="render"
 export DASHBOARD_LOG_REDIRECTED="TRUE"
 export DASHBOARD_SKIP_PUBLISH="TRUE"
 export DASHBOARD_SKIP_NOTIFY="TRUE"

@@ -21,13 +21,33 @@ ANNUAL_DISTANCE_GOAL_MI=6000
 
 If `ANNUAL_DISTANCE_GOAL_MI` is not set, the dashboard uses last year's total mileage as the annual distance goal.
 
-Render the dashboard with:
+Render the dashboard application with:
 
 ```sh
-Rscript render_dashboard.R
+CYCLING_ANALYTICS_RUN_MODE=render Rscript render_dashboard.R
 ```
 
 The render script resolves paths from the repository root, so it does not depend on a machine-specific working directory.
+Its default and authoritative production mode validates configuration, reads
+platform data, and renders `docs/index.html`; it does not publish or notify.
+Set `CYCLING_ANALYTICS_OUTPUT_DIR` to render to another directory.
+
+The complete production runtime and output contract is documented in
+[`docs/runtime-contract.md`](docs/runtime-contract.md).
+
+For the retained local publish-and-notify convenience:
+
+```sh
+CYCLING_ANALYTICS_RUN_MODE=local_publish Rscript render_dashboard.R
+```
+
+## Tests
+
+Run the focused regression suite from the repository root:
+
+```sh
+Rscript tests/run_tests.R
+```
 
 ## Scheduled Refreshes
 

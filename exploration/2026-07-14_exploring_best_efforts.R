@@ -45,11 +45,12 @@ ytd_best_efforts_streams <- ytd_best_efforts |>
 
 
 effort_stream <- ytd_best_efforts_streams |>
-    filter(activity_id == 18436525360, duration_seconds == 1200) |>
+    filter(duration_seconds == 1200) |>
     arrange(sample_index) |>
     mutate(
         distance_from_start_metres = distance_metres - min(distance_metres),
-        gradient_block = floor(distance_from_start_metres / 1000)
+        gradient_block = floor(distance_from_start_metres / 1000),
+        effort_distance_mi = distance_from_start_metres * 0.00062
     ) |>
     group_by(gradient_block) |>
     mutate(

@@ -26,9 +26,11 @@ con <- dashboard_stage("Connect database", {
 })
 
 dashboard_stage("Load data", {
-  activity_streams <- get_streams(con)
+  activities <- get_activities(con)
 
-  activity_summary <- build_activity_summary(activity_streams)
+  activity_summary <- build_activity_summary(activities)
+
+  activity_streams <- get_activity_streams(con)
 
   tbr_streams <- get_tbr_streams(con)
 
@@ -36,7 +38,7 @@ dashboard_stage("Load data", {
     select(activity_id:moving_time_seconds) |> 
     distinct()
 
-  ytd_stats <- build_ytd_stats(activity_streams)
+  ytd_stats <- build_ytd_stats(activities)
 
   ytd_streams <- activity_streams |> filter(year(start_date_local) == year(Sys.Date()))
 

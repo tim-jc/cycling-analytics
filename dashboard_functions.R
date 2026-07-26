@@ -12,30 +12,52 @@ peaks_units <- tibble::tribble(
 
 # Functions
 
-# Get streams
-get_streams <- function(con) {
+# Activity-grain input for summaries and statistics. Stream availability must
+# not determine whether an activity contributes to activity-level analytics.
+get_activities <- function(
+  con,
+  earliest_date = as.Date(sprintf("%d-01-01", year(Sys.Date()) - 1))
+) {
   DBI::dbGetQuery(
     conn = con,
     "SELECT
-    a.activity_id,
-    a.is_trainer,
-    a.sport_type,
-    a.start_date_local,
-    a.distance_metres, 
-    a.moving_time_seconds, 
-    a.elevation_gain_metres,
-    a.energy_kilojoules,
-    s.latitude,
-    s.longitude,
-    s.sample_index AS stream_order
-   FROM
-    cycling_platform_silver.activities a
-   INNER JOIN cycling_platform_silver.activity_streams s
-    ON a.activity_id = s.activity_id
-   WHERE
-    a.sport_type IN ('Ride','VirtualRide')
-    AND YEAR(a.start_date_local) >= (YEAR(NOW()) - 1)
-   ORDER BY a.activity_id, s.sample_index"
+      activity_id,
+      is_trainer,
+      sport_type,
+      start_date_local,
+      distance_metres,
+      moving_time_seconds,
+      elevation_gain_metres,
+      energy_kilojoules
+    FROM cycling_platform_silver.activities
+    WHERE sport_type IN ('Ride', 'VirtualRide')
+      AND start_date_local >= ?
+    ORDER BY activity_id",
+    params = list(format(as.Date(earliest_date), "%Y-%m-%d"))
+  )
+}
+
+# Stream-grain input for GPS and other sample-dependent presentation.
+get_activity_streams <- function(
+  con,
+  earliest_date = as.Date(sprintf("%d-01-01", year(Sys.Date()) - 1))
+) {
+  DBI::dbGetQuery(
+    conn = con,
+    "SELECT
+      a.activity_id,
+      a.sport_type,
+      a.start_date_local,
+      s.latitude,
+      s.longitude,
+      s.sample_index AS stream_order
+    FROM cycling_platform_silver.activities a
+    INNER JOIN cycling_platform_silver.activity_streams s
+      ON a.activity_id = s.activity_id
+    WHERE a.sport_type IN ('Ride', 'VirtualRide')
+      AND a.start_date_local >= ?
+    ORDER BY a.activity_id, s.sample_index",
+    params = list(format(as.Date(earliest_date), "%Y-%m-%d"))
   )
 }
 
@@ -65,8 +87,8 @@ get_tbr_streams <- function(con) {
 
 
 # Assemble YTD stats
-build_ytd_stats <- function(activity_streams) {
-  test <- activity_streams |>
+build_ytd_stats <- function(activities, reference_date = Sys.Date()) {
+  activities |>
     select(
       activity_id,
       start_date_local,
@@ -93,10 +115,10 @@ build_ytd_stats <- function(activity_streams) {
       ytd_time_hr = cumsum(moving_time_hr),
       ytd_energy_kcal = cumsum(replace_na(energy_kilojoules, 0)),
       ytd_longest_ride = max(
-        distance_mi[yr_day <= yday(Sys.Date())],
+        c(0, distance_mi[yr_day <= yday(reference_date)]),
         na.rm = T
       ),
-      yr_longest_ride = max(distance_mi, na.rm = T)
+      yr_longest_ride = max(c(0, distance_mi), na.rm = T)
     ) |>
     select(
       activity_id,
@@ -109,14 +131,14 @@ build_ytd_stats <- function(activity_streams) {
     group_by(start_date_local, yr, yr_day) |>
     summarise(
       ytd_distance_mi = max(ytd_distance_mi),
-      ytd_predicted_distance_mi = (ytd_distance_mi / yday(Sys.Date())) * 365,
+      ytd_predicted_distance_mi = (ytd_distance_mi / yday(reference_date)) * 365,
       ytd_elevation_m = max(ytd_elevation_m),
       ytd_tons = max(ytd_tons),
       is_ton_day = any(is_ton),
       ytd_time_hr = max(ytd_time_hr),
       ytd_energy_kcal = max(ytd_energy_kcal),
-      ytd_longest_ride = max(ytd_longest_ride, na.rm = T),
-      yr_longest_ride = max(yr_longest_ride, na.rm = T),
+      ytd_longest_ride = max(c(0, ytd_longest_ride), na.rm = T),
+      yr_longest_ride = max(c(0, yr_longest_ride), na.rm = T),
       is_activity_day = TRUE,
       activity_id = activity_id[distance_mi == max(distance_mi)],
       .groups = "drop"
@@ -131,11 +153,11 @@ build_ytd_stats <- function(activity_streams) {
     ) |>
     right_join(tibble(
       start_date_local = seq.Date(
-        floor_date(floor_date(Sys.Date(), "month") - years(1), "year"),
-        ceiling_date(Sys.Date(), "year") - days(1),
+        floor_date(floor_date(reference_date, "month") - years(1), "year"),
+        ceiling_date(reference_date, "year") - days(1),
         "days"
       )
-    )) |>
+    ), by = join_by(start_date_local)) |>
     mutate(
       yr = year(start_date_local),
       yr_day = yday(start_date_local),
@@ -143,15 +165,15 @@ build_ytd_stats <- function(activity_streams) {
       is_ton_day = if_else(is.na(is_ton_day), F, is_ton_day)
     ) |>
     arrange(yr, yr_day) |>
-    filter(!(yr == year(Sys.Date()) & yr_day > yday(Sys.Date()))) |>
+    filter(!(yr == year(reference_date) & yr_day > yday(reference_date))) |>
     fill(-activity_id, .direction = "down") |>
     mutate(
       across(where(is.numeric), ~ replace_na(.x, 0)),
       across(where(is.logical), ~ replace_na(.x, FALSE))
     ) |> # in case no riding on first day of year.
     mutate(
-      ytd_val = yr_day == yday(Sys.Date()),
-      yr_lbl = if_else(yr == year(Sys.Date()), "ytd", "pytd")
+      ytd_val = yr_day == yday(reference_date),
+      yr_lbl = if_else(yr == year(reference_date), "ytd", "pytd")
     ) |>
     ungroup()
 }
@@ -261,8 +283,8 @@ get_ytd_metric_display <- function(metric_to_plot) {
     slice_head(n = 1)
 }
 
-build_activity_summary <- function(activity_streams) {
-  activity_streams |>
+build_activity_summary <- function(activities) {
+  activities |>
     select(
       activity_id,
       sport_type,
@@ -436,10 +458,13 @@ rolling_mean_trailing <- function(values, window = 10) {
 
 get_ytd_best_power_efforts <- function(
   con,
-  durations_seconds = c(600, 1200, 1800, 3600)
+  durations_seconds = c(600, 1200, 1800, 3600),
+  reference_date = Sys.Date()
 ) {
   durations_seconds <- as.integer(durations_seconds)
   durations_sql <- str_flatten_comma(durations_seconds)
+  year_start <- floor_date(as.Date(reference_date), unit = "year")
+  next_year_start <- year_start %m+% years(1)
 
   efforts <- DBI::dbGetQuery(
     conn = con,
@@ -463,8 +488,10 @@ get_ytd_best_power_efforts <- function(
       WHERE abe.metric_name = 'watts'
         AND abe.is_record_eligible = 1
         AND abe.duration_seconds IN ({durations_sql})
-        AND YEAR(a.start_date_local) = YEAR(NOW())"
-    )
+        AND a.start_date_local >= ?
+        AND a.start_date_local < ?"
+    ),
+    params = list(as.character(year_start), as.character(next_year_start))
   )
 
   efforts |>
@@ -1023,15 +1050,15 @@ draw_rolling_activity_curve <- function(activity_summary, window_days = 28) {
     )
 }
 
-draw_weekly_training_volume <- function(
+build_weekly_training_volume <- function(
   activity_summary,
-  metric,
-  completed_weeks = 12
+  completed_weeks = 12,
+  reference_date = Sys.Date()
 ) {
-  current_week <- floor_date(Sys.Date(), "week", week_start = 1)
+  current_week <- floor_date(reference_date, "week", week_start = 1)
   first_week <- current_week - weeks(completed_weeks)
 
-  weekly_totals <- activity_summary |>
+  activity_summary |>
     filter(start_date_local >= first_week) |>
     mutate(week_start = floor_date(start_date_local, "week", week_start = 1)) |>
     group_by(week_start) |>
@@ -1061,6 +1088,17 @@ draw_weekly_training_volume <- function(
       ),
       is_current_week = week_start == current_week
     )
+}
+
+draw_weekly_training_volume <- function(
+  activity_summary,
+  metric,
+  completed_weeks = 12
+) {
+  weekly_totals <- build_weekly_training_volume(
+    activity_summary,
+    completed_weeks = completed_weeks
+  )
 
   metric_spec <- tribble(
     ~metric,             ~title,      ~unit, ~digits,

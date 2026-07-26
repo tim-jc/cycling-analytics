@@ -175,6 +175,74 @@ check_required_packages <- function(packages, project_root) {
   )
 }
 
+get_application_config <- function(project_root) {
+  run_mode <- Sys.getenv(
+    "CYCLING_ANALYTICS_RUN_MODE",
+    unset = "render"
+  )
+  allowed_run_modes <- c("render", "local_publish")
+
+  if (!run_mode %in% allowed_run_modes) {
+    stop(
+      "CYCLING_ANALYTICS_RUN_MODE must be one of: ",
+      paste(allowed_run_modes, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  timezone <- Sys.getenv(
+    "CYCLING_ANALYTICS_TIMEZONE",
+    unset = "Europe/London"
+  )
+
+  if (!timezone %in% OlsonNames()) {
+    stop(
+      "CYCLING_ANALYTICS_TIMEZONE is not a recognised timezone: ",
+      timezone,
+      call. = FALSE
+    )
+  }
+
+  Sys.setenv(TZ = timezone)
+
+  annual_goal <- Sys.getenv("ANNUAL_DISTANCE_GOAL_MI", unset = "")
+  if (nzchar(annual_goal)) {
+    annual_goal_value <- suppressWarnings(as.numeric(annual_goal))
+    if (is.na(annual_goal_value) || annual_goal_value <= 0) {
+      stop(
+        "ANNUAL_DISTANCE_GOAL_MI must be a positive number when set.",
+        call. = FALSE
+      )
+    }
+  }
+
+  configured_output <- Sys.getenv(
+    "CYCLING_ANALYTICS_OUTPUT_DIR",
+    unset = "docs"
+  )
+  output_dir <- if (grepl("^/", configured_output)) {
+    configured_output
+  } else {
+    file.path(project_root, configured_output)
+  }
+
+  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
+  output_dir <- normalizePath(
+    output_dir,
+    winslash = "/",
+    mustWork = TRUE
+  )
+
+  # Validate database values before connection retries begin.
+  get_database_config()
+
+  list(
+    run_mode = run_mode,
+    timezone = timezone,
+    output_dir = output_dir
+  )
+}
+
 format_dashboard_number <- function(value, digits = 0) {
   format(
     round(value, digits),
@@ -184,8 +252,8 @@ format_dashboard_number <- function(value, digits = 0) {
   )
 }
 
-get_latest_ride_summary <- function(activity_streams) {
-  latest_ride <- activity_streams |>
+get_latest_ride_summary <- function(activities) {
+  latest_ride <- activities |>
     dplyr::filter(.data$sport_type == "Ride") |>
     dplyr::select(
       "activity_id",
@@ -235,7 +303,7 @@ build_notification_context <- function(render_env, rendered_at) {
     glue::glue(
       "YTD: {format_dashboard_number(ytd_distance)} mi | {format_dashboard_number(ytd_tons)} tons | {format_dashboard_number(ytd_hours)} hr"
     ),
-    get_latest_ride_summary(render_env$activity_streams),
+    get_latest_ride_summary(render_env$activities),
     glue::glue("Next refresh: {next_run_text}"),
     sep = "\n"
   )
@@ -261,6 +329,7 @@ main <- function() {
 
   project_root <- NULL
   old_wd <- NULL
+  application_config <- NULL
 
   run_dashboard_stage("Initialise", {
     project_root <- get_project_root()
@@ -324,6 +393,16 @@ main <- function() {
     dashboard_log(dashboard_runtime_context())
   })
 
+  run_dashboard_stage("Validate configuration", {
+    application_config <- get_application_config(project_root)
+    dashboard_log(sprintf(
+      "Application configuration: run_mode=%s; timezone=%s; output_dir=%s",
+      application_config$run_mode,
+      application_config$timezone,
+      application_config$output_dir
+    ))
+  })
+
   if (!is.null(old_wd)) {
     on.exit(setwd(old_wd), add = TRUE)
   }
@@ -362,81 +441,90 @@ main <- function() {
     add = TRUE
   )
 
-  # Render and publish ------------------------------------------------------
+  # Render application artefact --------------------------------------------
 
-  # Render dashboard
   run_dashboard_stage("Render dashboard", {
     rmarkdown::render(
       file.path(project_root, "dashboards", "index.Rmd"),
       output_file = "index.html",
-      output_dir = file.path(project_root, "docs"),
+      output_dir = application_config$output_dir,
       envir = render_env
     )
   })
 
-  # Push updated dashboard to git
-  publish_result <- if (identical(Sys.getenv("DASHBOARD_SKIP_PUBLISH", ""), "TRUE")) {
-    run_dashboard_stage("Publish to Git", {
-      dashboard_log("Publish skipped by DASHBOARD_SKIP_PUBLISH=TRUE.")
-      list(
-        committed = FALSE,
-        pushed = FALSE,
-        commit = NA_character_,
-        skipped = TRUE
-      )
-    })
-  } else {
-    run_dashboard_stage("Publish to Git", {
-      publish_to_git(git_path = project_root)
-    })
-  }
-
-  # Send notification
-  if (identical(Sys.getenv("DASHBOARD_SKIP_NOTIFY", ""), "TRUE")) {
-    run_dashboard_stage("Notify", {
-      notification_context_file <- Sys.getenv(
-        "DASHBOARD_NOTIFICATION_CONTEXT_FILE",
-        ""
-      )
-
-      if (nzchar(notification_context_file)) {
-        writeLines(
-          build_notification_context(render_env, Sys.time()),
-          notification_context_file
+  if (identical(application_config$run_mode, "local_publish")) {
+    # Explicit local-development convenience. Production orchestration owns
+    # publication and operational notification.
+    publish_result <- if (identical(
+      Sys.getenv("DASHBOARD_SKIP_PUBLISH", ""),
+      "TRUE"
+    )) {
+      run_dashboard_stage("Publish to Git", {
+        dashboard_log("Publish skipped by DASHBOARD_SKIP_PUBLISH=TRUE.")
+        list(
+          committed = FALSE,
+          pushed = FALSE,
+          commit = NA_character_,
+          skipped = TRUE
         )
-        dashboard_log(glue::glue(
-          "Notification context written to {notification_context_file}."
-        ))
-      }
+      })
+    } else {
+      run_dashboard_stage("Publish to Git", {
+        publish_to_git(git_path = project_root)
+      })
+    }
 
-      dashboard_log("Notification skipped by DASHBOARD_SKIP_NOTIFY=TRUE.")
-    })
+    if (identical(Sys.getenv("DASHBOARD_SKIP_NOTIFY", ""), "TRUE")) {
+      run_dashboard_stage("Notify", {
+        dashboard_log("Notification skipped by DASHBOARD_SKIP_NOTIFY=TRUE.")
+      })
+    } else {
+      run_dashboard_stage("Notify", {
+        ntfy_msg <- build_success_notification(
+          render_env,
+          publish_result,
+          Sys.time()
+        )
+
+        msg_title <- if (isTRUE(publish_result$committed)) {
+          "Dashboard published"
+        } else {
+          "Dashboard checked"
+        }
+
+        msg_tags <- if (isTRUE(publish_result$committed)) {
+          "bike,white_check_mark"
+        } else {
+          "bike,mag"
+        }
+
+        response <- send_ntfy_message(
+          ntfy_msg,
+          msg_title = msg_title,
+          msg_tags = msg_tags
+        )
+        httr::stop_for_status(response)
+      })
+    }
   } else {
-    run_dashboard_stage("Notify", {
-    ntfy_msg <- build_success_notification(
-      render_env,
-      publish_result,
-      Sys.time()
+    notification_context_file <- Sys.getenv(
+      "DASHBOARD_NOTIFICATION_CONTEXT_FILE",
+      ""
     )
 
-    msg_title <- if (isTRUE(publish_result$committed)) {
-      "Dashboard published"
-    } else {
-      "Dashboard checked"
+    if (nzchar(notification_context_file)) {
+      writeLines(
+        build_notification_context(render_env, Sys.time()),
+        notification_context_file
+      )
+      dashboard_log(glue::glue(
+        "Notification context written to {notification_context_file}."
+      ))
     }
 
-    msg_tags <- if (isTRUE(publish_result$committed)) {
-      "bike,white_check_mark"
-    } else {
-      "bike,mag"
-    }
-
-    send_ntfy_message(
-      ntfy_msg,
-      msg_title = msg_title,
-      msg_tags = msg_tags
-    )
-    })
+    dashboard_log(glue::glue(
+      "Rendered dashboard artefact: {file.path(application_config$output_dir, 'index.html')}"
+    ))
   }
 
   run_dashboard_stage("Complete", {
