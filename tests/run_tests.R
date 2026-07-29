@@ -11,6 +11,7 @@ Sys.setenv(TZ = "Europe/London")
 
 source("db/db.R")
 source("dashboard_functions.R")
+source("reports/ride-summary/R/ride_report_model.R")
 
 tests_run <- 0L
 
@@ -209,6 +210,63 @@ run_test("missing database configuration fails before connection retries", {
     get_database_config(),
     "MARIADB_PORT must be an integer between 1 and 65535."
   )
+})
+
+run_test("ride report selects only the eligible 20-minute effort", {
+  efforts <- tibble(
+    activity_id = 1,
+    duration_seconds = c(1200L, 300L, 60L),
+    peak_value = c(220, 280, 360),
+    start_sample_index = c(1L, 100L, 2000L),
+    end_sample_index = c(1200L, 399L, 2059L),
+    start_distance_metres = c(0, 1000, 20000),
+    end_distance_metres = c(10000, 4000, 20500)
+  )
+  selected <- select_coaching_efforts(efforts)
+
+  expect_equal(selected$duration_seconds, 1200L)
+})
+
+run_test("ride report power zones degrade gracefully without FTP", {
+  report_streams <- tibble(watts = rep(200, 120))
+  expect_equal(nrow(build_power_zones(report_streams)), 0L)
+})
+
+run_test("ride report excludes discontinuous Gold effort windows", {
+  efforts <- tibble(
+    duration_seconds = c(60L, 1200L),
+    start_time_seconds = c(100L, 1000L),
+    end_time_seconds = c(159L, 2500L)
+  )
+  continuous <- filter_continuous_efforts(efforts)
+
+  expect_equal(continuous$duration_seconds, 60L)
+})
+
+run_test("ride report effort trace includes 30-second context", {
+  streams <- tibble(
+    sample_index = 1:181,
+    time_seconds = 0:180,
+    distance_metres = 0:180,
+    altitude_metres = 100,
+    watts = 200,
+    heartrate_bpm = 140,
+    cadence_rpm = 85
+  )
+  effort <- tibble(
+    effort_name = "Best 1 min power",
+    start_sample_index = 61L,
+    end_sample_index = 121L,
+    start_time_seconds = 60L,
+    end_time_seconds = 120L,
+    start_distance_metres = 60,
+    end_distance_metres = 120,
+    duration_seconds = 60L,
+    peak_value = 200
+  )
+  model <- build_effort_summary(effort, streams)
+
+  expect_equal(range(model$context_streams$relative_time_minutes), c(-0.5, 1.5))
 })
 
 cat(sprintf("\n%d tests passed.\n", tests_run))

@@ -1,0 +1,291 @@
+---
+title: "Ride Summary"
+subtitle: "Post-ride coaching report"
+format:
+  typst:
+    papersize: a4
+    fig-format: png
+    margin:
+      x: 15mm
+      y: 14mm
+    fontsize: 9pt
+execute:
+  echo: false
+  warning: false
+  message: false
+params:
+  activity_id: null
+  project_root: "."
+  ftp_watts: null
+  session_objective: null
+---
+
+```{r}
+#| label: setup
+#| include: false
+suppressPackageStartupMessages({
+  library(tidyverse)
+  library(lubridate)
+  library(DBI)
+  library(RMariaDB)
+})
+
+if (is.null(params$activity_id) || !nzchar(as.character(params$activity_id))) {
+  stop("The ride summary requires an activity_id parameter.", call. = FALSE)
+}
+project_root <- normalizePath(params$project_root, mustWork = TRUE)
+source(file.path(project_root, "db", "db.R"))
+source(file.path(project_root, "reports", "ride-summary", "R", "ride_report_data.R"))
+source(file.path(project_root, "reports", "ride-summary", "R", "ride_report_model.R"))
+source(file.path(project_root, "reports", "ride-summary", "R", "ride_report_components.R"))
+
+con <- connect_db()
+ride_data <- load_ride_report_data(con, params$activity_id)
+DBI::dbDisconnect(con)
+activity <- ride_data$activity
+streams <- ride_data$streams
+best_efforts <- ride_data$best_efforts
+continuous_best_efforts <- filter_continuous_efforts(best_efforts)
+ftp_watts <- as.numeric(params$ftp_watts %||% NA_real_)
+session_objective <- params$session_objective %||%
+  Sys.getenv("RIDE_REPORT_SESSION_OBJECTIVE", unset = "")
+selected_efforts <- select_coaching_efforts(continuous_best_efforts)
+zone_data <- build_power_zones(streams, ftp_watts)
+```
+
+**Session objective:** `r ifelse(nzchar(session_objective), session_objective, "Not supplied")`
+
+# Ride overview
+
+```{r}
+#| results: asis
+summary_cards(list(
+  Date = format(as.Date(activity$start_date_local[[1]]), "%d %B %Y"),
+  `Start time` = format(
+    as.POSIXct(activity$start_datetime_local[[1]]),
+    "%H:%M"
+  ),
+  Activity = activity$activity_name[[1]] %||% "Unnamed ride",
+  Bike = "Not available",
+  Distance = format_metric(
+    activity$distance_metres[[1]] * 0.000621371,
+    " mi",
+    1
+  ),
+  `Moving time` = format_duration(activity$moving_time_seconds[[1]]),
+  `Elapsed time` = format_duration(activity$elapsed_time_seconds[[1]]),
+  `Elevation gain` = format_metric(activity$elevation_gain_metres[[1]], " m"),
+  `Average speed` = format_metric(
+    activity$average_speed_miles_per_hour[[1]], " mph", 1
+  )
+))
+```
+
+# Power and cardiovascular summary
+
+```{r}
+#| results: asis
+summary_cards(list(
+  `Average power` = format_metric(
+    activity$average_power_watts[[1]],
+    " W"
+  ),
+  `Maximum power` = format_metric(safe_max(streams$watts), " W"),
+  Work = format_metric(activity$energy_kilojoules[[1]], " kJ"),
+  `Average HR` = format_metric(activity$average_heartrate_bpm[[1]], " bpm"),
+  `Maximum HR` = format_metric(safe_max(streams$heartrate_bpm), " bpm"),
+  `Average cadence` = format_metric(
+    activity$average_cadence_rpm[[1]], " rpm"
+  ),
+  `Maximum cadence` = format_metric(safe_max(streams$cadence_rpm), " rpm")
+))
+```
+
+# Conditions
+
+```{r}
+#| results: asis
+summary_cards(list(
+  `Average temperature` = format_metric(
+    safe_mean(streams$temperature_celsius), " C", 1
+  ),
+  `Maximum temperature` = format_metric(
+    safe_max(streams$temperature_celsius), " C", 1
+  ),
+  `Wind speed` = "Not available",
+  `Wind direction` = "Not available"
+))
+```
+
+# Laps
+
+Lap analysis is intentionally unavailable until cycling-platform publishes a
+curated lap product with distance, time, power, NP, heart rate, cadence, speed
+and elevation gain.
+
+```{r}
+#| results: asis
+if (nrow(selected_efforts) > 0L) {
+  cat("```{=typst}\n#pagebreak()\n```\n\n")
+}
+```
+
+# Key efforts
+
+```{r}
+#| results: asis
+if (nrow(selected_efforts) == 0L) {
+  cat(
+    "No eligible Best 20 min effort is available for this ride. ",
+    "Longest/highest-NP/fastest climb selection requires a trusted climb product."
+  )
+}
+```
+
+```{r}
+#| label: effort-pages
+#| results: asis
+#| fig-width: 7.2
+#| fig-height: 2.25
+if (nrow(selected_efforts) > 0L) {
+  for (effort_index in seq_len(nrow(selected_efforts))) {
+    effort_model <- build_effort_summary(selected_efforts[effort_index, ], streams)
+    effort_summary <- effort_model$summary
+    effort_plots <- plot_effort_traces(
+      effort_model$context_streams, effort_summary$name[[1]]
+    )
+    cat("## ", effort_summary$name[[1]], "\n\n", sep = "")
+    summary_cards(list(
+      Distance = format_metric(effort_summary$distance_miles, " mi", 1),
+      Duration = format_duration(effort_summary$duration_seconds),
+      `Average power` = format_metric(effort_summary$average_power_watts, " W"),
+      `Average HR` = format_metric(
+        effort_summary$average_heartrate_bpm, " bpm"
+      ),
+      `Average cadence` = format_metric(
+        effort_summary$average_cadence_rpm, " rpm"
+      ),
+      `Estimated elevation gain*` = format_metric(
+        effort_summary$elevation_gain_metres, " m"
+      ),
+      `Estimated VAM*` = format_metric(
+        effort_summary$vam_metres_per_hour, " m/h"
+      )
+    ))
+    cat("\n\n")
+    if (!is.null(effort_plots)) {
+      print(effort_plots$power)
+      print(effort_plots$elevation)
+    }
+    cat(
+      "\n\n*Elevation gain and VAM are report estimates. ",
+      "The effort window and average power come from Gold best efforts.*\n\n"
+    )
+    cat("The shaded region is the effort; the trace includes 30 s context.\n\n")
+    if (effort_index < nrow(selected_efforts)) {
+      cat("```{=typst}\n#pagebreak()\n```\n\n")
+    }
+  }
+  cat("```{=typst}\n#pagebreak()\n```\n\n")
+}
+```
+
+# Ride plots
+
+```{r}
+#| fig-width: 7.2
+#| fig-height: 2.1
+ride_plots <- list(
+  plot_ride_metric(
+    streams, "altitude_metres", "Elevation profile", "Elevation (m)",
+    report_colours$elevation, "#D7E3D2"
+  ),
+  plot_ride_metric(
+    streams,
+    "watts",
+    "Power trace",
+    "Power (W)",
+    report_colours$ink,
+    highlighted_efforts = selected_efforts
+  ),
+  plot_ride_metric(
+    streams, "heartrate_bpm", "Heart-rate trace", "Heart rate (bpm)",
+    report_colours$heart
+  )
+)
+for (plot in ride_plots) if (!is.null(plot)) print(plot)
+```
+
+# Power distribution
+
+```{r}
+#| fig-width: 7.2
+#| fig-height: 2.8
+zone_plot <- plot_power_zones(zone_data)
+if (is.null(zone_plot)) {
+  cat("Power-zone time unavailable: supply a current FTP to enable it.")
+} else print(zone_plot)
+
+curve_plot <- plot_ride_power_curve(continuous_best_efforts)
+if (is.null(curve_plot)) {
+  cat("Ride-only power-duration data unavailable.")
+} else print(curve_plot)
+```
+
+# Best powers
+
+```{r}
+#| results: asis
+best_power_table <- tibble(
+  duration_seconds = c(5, 60, 300, 1200, 3600),
+  Duration = c("5 s", "1 min", "5 min", "20 min", "60 min")
+) |>
+  left_join(
+    continuous_best_efforts |> select(duration_seconds, peak_value),
+    by = "duration_seconds"
+  ) |>
+  transmute(
+    Duration,
+    `Best power` = map_chr(peak_value, format_metric, suffix = " W")
+  )
+print(compact_table(best_power_table))
+```
+
+```{=typst}
+#pagebreak()
+```
+
+# Coaching prompts
+
+- Which selected effort best reflects the purpose of the ride?
+- Was power delivery appropriately steady for the terrain and session goal?
+- How did heart rate respond during the longer effort windows?
+- Did cadence remain effective as fatigue accumulated?
+- Were fuelling and hydration appropriate for the ride duration and intensity?
+- Which missing context - perceived exertion, weather, route or session intent -
+  would most change the interpretation?
+
+# Session diagnostics
+
+- **Pacing:** Coach/rider assessment required
+- **Fuelling:** Coach/rider assessment required
+
+These are discussion checks, not calculated judgements. Trusted diagnostic and
+fuelling products do not yet exist.
+
+# Data provenance and limitations
+
+- Activity summaries and streams: `cycling_platform_silver`.
+- Best-power windows: `cycling_platform_gold.activity_best_efforts`.
+- Gold effort windows whose elapsed span exceeds their requested duration are
+  excluded. The platform must provide the next valid continuous window before
+  that duration can appear in this report.
+- Laps are omitted pending a curated platform product.
+- Estimated NP, VI, IF and TSS are deliberately omitted pending canonical
+  platform products.
+- Effort elevation gain, VAM and zones are isolated report-only calculations,
+  not canonical platform facts.
+- Bike name requires an agreed bike-library interface.
+- Wind, detected climbs/intervals, FTP history,
+  training-load metrics and HR-power decoupling are not currently available as
+  trusted platform products.

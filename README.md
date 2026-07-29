@@ -49,6 +49,17 @@ Run the focused regression suite from the repository root:
 Rscript tests/run_tests.R
 ```
 
+## Ride Summary PDF
+
+Generate a compact post-ride coaching report with:
+
+```sh
+Rscript scripts/render_ride_summary.R --activity-id <activity-id>
+```
+
+An optional FTP input enables estimated training-load and power-zone sections.
+See [`docs/ride-summary-report.md`](docs/ride-summary-report.md).
+
 ## Scheduled Refreshes
 
 Set `DASHBOARD_REFRESH_SCHEDULE` to a standard five-field cron expression, then install the managed cron block from an R session:
