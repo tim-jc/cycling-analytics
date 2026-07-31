@@ -12,3 +12,6 @@ output/pdf/
 renv/library/
 renv/staging/
 renv/sandbox/
+
+reports/ride-summary/.quarto/
+**/*.quarto_ipynb
