@@ -27,6 +27,11 @@ fall back to a shorter or non-cycling activity.
 4. Prepare labels, traces, map, table, and factual observations locally as
    presentation logic.
 
+The primary analytical views are the route, a ride-only power curve sourced
+from all available Gold best-effort durations, and a heart-rate zone
+distribution. Comparative highlights rank canonical activity metrics and Gold
+power efforts within the activity's calendar year.
+
 The existing dashboard pages retain their current queries. Latest Ride adds no
 Raw-layer dependency and performs no local reconstruction of canonical facts.
 
@@ -41,6 +46,16 @@ Raw-layer dependency and performs no local reconstruction of canonical facts.
   curated lap product.
 - `gear_id` is not presented as a bike name. Bike identity is deferred until a
   trusted equipment product is available.
+
+Heart-rate zones are not yet a trusted platform product. They are therefore
+disabled unless `CYCLING_ANALYTICS_HR_MAX_BPM` is explicitly configured. When
+enabled, the dashboard uses isolated presentation-only zones at <60%, 60–70%,
+70–80%, 80–90%, and >=90% of that value. This should move to cycling-platform
+if zones become reusable by coaching, MCP, or other consumers.
+
+Top-N rankings are likewise isolated presentation queries over canonical
+Silver activity fields and Gold effort values. A future platform ranking
+product should replace them if multiple consumers need the same comparisons.
 
 The page deliberately omits coaching prescriptions, nutrition, estimated NP,
 IF, TSS, and any PDF-report behaviour.

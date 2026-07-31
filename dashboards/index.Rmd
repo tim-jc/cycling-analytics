@@ -32,6 +32,8 @@ dashboard_stage("Load data", {
 
   latest_ride_efforts <- get_latest_ride_best_efforts(con, latest_ride$activity_id)
 
+  latest_ride_rankings <- get_latest_ride_rankings(con, latest_ride$activity_id)
+
   activities <- get_activities(con)
 
   activity_summary <- build_activity_summary(activities)
@@ -120,9 +122,19 @@ dashboard_stage("Load data", {
   padding: 14px;
 }
 
-#latest-ride table {
-  font-size: 13px;
-  margin-top: 8px;
+.latest-ride-highlights {
+  display: grid;
+  gap: 10px;
+  padding: 10px 4px;
+}
+
+.latest-ride-highlight {
+  background: #F5F8FA;
+  border-left: 5px solid #F2A46F;
+  color: #17324D;
+  font-size: 17px;
+  font-weight: 600;
+  padding: 12px 15px;
 }
 ```
 
@@ -211,26 +223,6 @@ latest_ride_value_box(
 )
 ```
 
-### Average heart rate
-
-```{r}
-latest_ride_value_box(
-  if (nrow(latest_ride)) format_latest_metric(latest_ride$average_heartrate_bpm, " bpm") else "—",
-  "Average heart rate",
-  "fa-heartbeat"
-)
-```
-
-### Maximum heart rate
-
-```{r}
-latest_ride_value_box(
-  if (nrow(latest_ride) && any(!is.na(latest_ride_streams$heartrate_bpm))) format_latest_metric(max(latest_ride_streams$heartrate_bpm, na.rm = TRUE), " bpm") else "Unavailable",
-  "Observed stream maximum",
-  "fa-heartbeat"
-)
-```
-
 ### Average cadence
 
 ```{r}
@@ -241,31 +233,10 @@ latest_ride_value_box(
 )
 ```
 
-Row {data-height=285}
+Row {data-height=430}
 -----------------------------------------------------------------------
 
-### Elevation profile
-
-```{r}
-draw_latest_ride_trace(latest_ride_streams, "altitude_metres", "Elevation", "m", "#17324D")
-```
-
-### Power trace
-
-```{r}
-draw_latest_ride_trace(latest_ride_streams, "watts", "Power", "W", "#C56B3F")
-```
-
-### Heart-rate trace
-
-```{r}
-draw_latest_ride_trace(latest_ride_streams, "heartrate_bpm", "Heart-rate", "bpm", "#A33A3A")
-```
-
-Row {data-height=310}
------------------------------------------------------------------------
-
-### Route
+### Route {data-width=7}
 
 ```{r}
 draw_latest_ride_map(
@@ -274,19 +245,26 @@ draw_latest_ride_map(
 )
 ```
 
-### Ride-only best powers
+### Ride-only power curve {data-width=5}
 
 ```{r}
-latest_ride_efforts_table(latest_ride_efforts)
+draw_latest_ride_power_curve(latest_ride_efforts)
 ```
 
-### Factual observations
+Row {data-height=275}
+-----------------------------------------------------------------------
+
+### Heart-rate zones
 
 ```{r}
-latest_ride_observations(latest_ride, latest_ride_streams, latest_ride_efforts)
+draw_latest_ride_hr_zones(latest_ride_streams)
 ```
 
-Laps are not shown: cycling-platform does not yet publish a curated lap product. Bike name is likewise deferred until a trusted equipment identity is available; the dashboard does not present the source `gear_id` as a bike name.
+### Ride highlights
+
+```{r}
+latest_ride_highlights(latest_ride_rankings)
+```
 
 Summary
 ===================================== 

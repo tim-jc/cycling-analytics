@@ -232,6 +232,29 @@ run_test("a qualifying Latest Ride remains usable without streams", {
   expect_true(inherits(latest_ride_identity(selected), "shiny.tag"))
 })
 
+run_test("Latest Ride HR zones use an explicit configured maximum", {
+  zone_streams <- tibble(heartrate_bpm = c(100, 120, 140, 160, 180))
+  zones <- build_latest_ride_hr_zones(zone_streams, max_hr_bpm = 200)
+  expect_equal(as.character(zones$zone), paste0("Z", 1:5))
+  expect_equal(sum(zones$seconds), 5)
+  expect_equal(nrow(build_latest_ride_hr_zones(zone_streams, max_hr_bpm = NA_real_)), 0L)
+})
+
+run_test("Latest Ride highlights favour activity and strong power rankings", {
+  rankings <- tibble(
+    achievement_rank = c(4, 2, 1, 12),
+    comparison_count = c(100, 20, 100, 100),
+    ranking_type = c("distance", "speed_50_miles", "power", "power"),
+    duration_seconds = c(0, 0, 1800, 300),
+    metric_value = c(200000, 20, 230, 250)
+  )
+  rendered <- as.character(latest_ride_highlights(rankings))
+  expect_true(grepl("4th longest ride this year", rendered, fixed = TRUE))
+  expect_true(grepl("2nd fastest 50+ mile ride this year", rendered, fixed = TRUE))
+  expect_true(grepl("1st best 30 min power this year", rendered, fixed = TRUE))
+  expect_true(!grepl("12th", rendered, fixed = TRUE))
+})
+
 run_test("missing database configuration fails before connection retries", {
   database_keys <- c(
     "MARIADB_HOST",
