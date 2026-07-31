@@ -155,7 +155,7 @@ latest_ride_identity(latest_ride)
 ```{r}
 latest_ride_value_box(
   if (nrow(latest_ride)) format_latest_metric(latest_ride$distance_metres / METRES_PER_MILE, " mi", 1) else "—",
-  "Canonical activity distance",
+  "Total distance",
   "fa-road"
 )
 ```
@@ -198,7 +198,7 @@ Row {data-height=108}
 ```{r}
 latest_ride_value_box(
   if (nrow(latest_ride)) format_latest_metric(latest_ride$average_power_watts, " W") else "—",
-  "Trusted activity summary",
+  "Average power",
   "fa-bolt"
 )
 ```
@@ -208,7 +208,7 @@ latest_ride_value_box(
 ```{r}
 latest_ride_value_box(
   if (nrow(latest_ride) && any(!is.na(latest_ride_streams$watts))) format_latest_metric(max(latest_ride_streams$watts, na.rm = TRUE), " W") else "Unavailable",
-  "Observed stream maximum",
+  "Maximum power",
   "fa-bolt"
 )
 ```
@@ -218,7 +218,7 @@ latest_ride_value_box(
 ```{r}
 latest_ride_value_box(
   if (nrow(latest_ride)) format_latest_metric(latest_ride$energy_kilojoules, " kJ") else "—",
-  "Trusted activity summary",
+  "Total work done",
   "fa-fire"
 )
 ```
