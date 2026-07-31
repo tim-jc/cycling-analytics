@@ -26,6 +26,12 @@ con <- dashboard_stage("Connect database", {
 })
 
 dashboard_stage("Load data", {
+  latest_ride <- get_latest_significant_ride(con)
+
+  latest_ride_streams <- get_latest_ride_streams(con, latest_ride$activity_id)
+
+  latest_ride_efforts <- get_latest_ride_best_efforts(con, latest_ride$activity_id)
+
   activities <- get_activities(con)
 
   activity_summary <- build_activity_summary(activities)
@@ -72,7 +78,215 @@ dashboard_stage("Load data", {
   right: 14px;
   font-size: 56px;
 }
+
+#latest-ride .value-box {
+  min-height: 88px;
+}
+
+#latest-ride .value-box .inner {
+  padding: 9px 14px;
+}
+
+.latest-ride-identity {
+  border-left: 5px solid #17324D;
+  background: #F5F8FA;
+  height: 100%;
+  padding: 10px 16px;
+}
+
+.latest-ride-identity h3 {
+  color: #17324D;
+  margin: 0 0 4px;
+}
+
+.latest-ride-identity p {
+  margin: 2px 0;
+}
+
+.latest-ride-rule {
+  color: #687785;
+  display: block;
+  font-size: 11px;
+  margin-top: 3px;
+}
+
+.latest-ride-notice {
+  align-items: center;
+  background: #F5F8FA;
+  border-left: 4px solid #AAB7C2;
+  color: #52616B;
+  display: flex;
+  min-height: 76px;
+  padding: 14px;
+}
+
+#latest-ride table {
+  font-size: 13px;
+  margin-top: 8px;
+}
 ```
+
+Latest Ride
+=====================================
+
+Row {data-height=120}
+-----------------------------------------------------------------------
+
+### Ride overview
+
+```{r}
+latest_ride_identity(latest_ride)
+```
+
+### Distance
+
+```{r}
+latest_ride_value_box(
+  if (nrow(latest_ride)) format_latest_metric(latest_ride$distance_metres / METRES_PER_MILE, " mi", 1) else "—",
+  "Canonical activity distance",
+  "fa-road"
+)
+```
+
+### Moving time
+
+```{r}
+latest_ride_value_box(
+  if (nrow(latest_ride)) format_latest_duration(latest_ride$moving_time_seconds) else "—",
+  "Moving time",
+  "fa-clock-o"
+)
+```
+
+### Elevation
+
+```{r}
+latest_ride_value_box(
+  if (nrow(latest_ride)) format_latest_metric(latest_ride$elevation_gain_metres, " m") else "—",
+  "Elevation gain",
+  "fa-line-chart"
+)
+```
+
+### Average speed
+
+```{r}
+latest_ride_value_box(
+  if (nrow(latest_ride)) format_latest_metric(latest_ride$average_speed_miles_per_hour, " mph", 1) else "—",
+  "Average speed",
+  "fa-tachometer"
+)
+```
+
+Row {data-height=108}
+-----------------------------------------------------------------------
+
+### Average power
+
+```{r}
+latest_ride_value_box(
+  if (nrow(latest_ride)) format_latest_metric(latest_ride$average_power_watts, " W") else "—",
+  "Trusted activity summary",
+  "fa-bolt"
+)
+```
+
+### Maximum power
+
+```{r}
+latest_ride_value_box(
+  if (nrow(latest_ride) && any(!is.na(latest_ride_streams$watts))) format_latest_metric(max(latest_ride_streams$watts, na.rm = TRUE), " W") else "Unavailable",
+  "Observed stream maximum",
+  "fa-bolt"
+)
+```
+
+### Work
+
+```{r}
+latest_ride_value_box(
+  if (nrow(latest_ride)) format_latest_metric(latest_ride$energy_kilojoules, " kJ") else "—",
+  "Trusted activity summary",
+  "fa-fire"
+)
+```
+
+### Average heart rate
+
+```{r}
+latest_ride_value_box(
+  if (nrow(latest_ride)) format_latest_metric(latest_ride$average_heartrate_bpm, " bpm") else "—",
+  "Average heart rate",
+  "fa-heartbeat"
+)
+```
+
+### Maximum heart rate
+
+```{r}
+latest_ride_value_box(
+  if (nrow(latest_ride) && any(!is.na(latest_ride_streams$heartrate_bpm))) format_latest_metric(max(latest_ride_streams$heartrate_bpm, na.rm = TRUE), " bpm") else "Unavailable",
+  "Observed stream maximum",
+  "fa-heartbeat"
+)
+```
+
+### Average cadence
+
+```{r}
+latest_ride_value_box(
+  if (nrow(latest_ride)) format_latest_metric(latest_ride$average_cadence_rpm, " rpm") else "—",
+  "Average cadence",
+  "fa-refresh"
+)
+```
+
+Row {data-height=285}
+-----------------------------------------------------------------------
+
+### Elevation profile
+
+```{r}
+draw_latest_ride_trace(latest_ride_streams, "altitude_metres", "Elevation", "m", "#17324D")
+```
+
+### Power trace
+
+```{r}
+draw_latest_ride_trace(latest_ride_streams, "watts", "Power", "W", "#C56B3F")
+```
+
+### Heart-rate trace
+
+```{r}
+draw_latest_ride_trace(latest_ride_streams, "heartrate_bpm", "Heart-rate", "bpm", "#A33A3A")
+```
+
+Row {data-height=310}
+-----------------------------------------------------------------------
+
+### Route
+
+```{r}
+draw_latest_ride_map(
+  latest_ride_streams,
+  if (nrow(latest_ride)) latest_ride$sport_type[[1]] else NA_character_
+)
+```
+
+### Ride-only best powers
+
+```{r}
+latest_ride_efforts_table(latest_ride_efforts)
+```
+
+### Factual observations
+
+```{r}
+latest_ride_observations(latest_ride, latest_ride_streams, latest_ride_efforts)
+```
+
+Laps are not shown: cycling-platform does not yet publish a curated lap product. Bike name is likewise deferred until a trusted equipment identity is available; the dashboard does not present the source `gear_id` as a bike name.
 
 Summary
 ===================================== 

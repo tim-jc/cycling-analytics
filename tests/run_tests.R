@@ -11,6 +11,7 @@ Sys.setenv(TZ = "Europe/London")
 
 source("db/db.R")
 source("dashboard_functions.R")
+source("latest_ride_functions.R")
 source("reports/ride-summary/R/ride_report_model.R")
 
 tests_run <- 0L
@@ -171,6 +172,64 @@ run_test("empty outdoor streams return four placeholder extrema", {
   extrema <- get_position_extremities(empty_streams)
 
   expect_equal(extrema$extremity, c("N", "S", "E", "W"))
+})
+
+latest_ride_fixture <- tibble(
+  activity_id = c(1, 2, 3, 4),
+  sport_type = c("Ride", "Ride", "VirtualRide", "Run"),
+  start_datetime_local = as.POSIXct(c(
+    "2026-07-20 08:00:00", "2026-07-22 08:00:00",
+    "2026-07-23 08:00:00", "2026-07-24 08:00:00"
+  )),
+  distance_metres = c(19.9, 20, 30, 50) * METRES_PER_MILE
+)
+
+run_test("Latest Ride skips a newer activity under 20 miles", {
+  fixture <- latest_ride_fixture |> dplyr::filter(.data$activity_id %in% c(1, 2))
+  selected <- select_latest_significant_activity(fixture)
+  expect_equal(selected$activity_id, 2)
+})
+
+run_test("Latest Ride includes exactly 20 miles", {
+  selected <- select_latest_significant_activity(latest_ride_fixture |> dplyr::slice(2))
+  expect_equal(selected$activity_id, 2)
+})
+
+run_test("Latest Ride chooses the newest qualifying cycling activity", {
+  selected <- select_latest_significant_activity(latest_ride_fixture)
+  expect_equal(selected$activity_id, 3)
+})
+
+run_test("Latest Ride excludes non-cycling activities", {
+  selected <- select_latest_significant_activity(latest_ride_fixture |> dplyr::slice(4))
+  expect_equal(nrow(selected), 0L)
+})
+
+run_test("Latest Ride has an explicit empty state with the selection rule", {
+  selected <- select_latest_significant_activity(latest_ride_fixture |> dplyr::slice(1))
+  expect_equal(nrow(selected), 0L)
+  expect_true(grepl("at least 20 miles", latest_ride_empty_message(), fixed = TRUE))
+})
+
+run_test("missing one Latest Ride stream does not suppress other traces", {
+  partial_streams <- tibble(
+    altitude_metres = c(100, 105), watts = c(NA_real_, NA_real_),
+    heartrate_bpm = c(130, 135), latitude = c(51.5, 51.6), longitude = c(-0.1, -0.2)
+  )
+  availability <- latest_ride_stream_availability(partial_streams)
+  expect_true(availability[["elevation"]])
+  expect_true(!availability[["power"]])
+  expect_true(availability[["heart_rate"]])
+  expect_true(availability[["gps"]])
+})
+
+run_test("a qualifying Latest Ride remains usable without streams", {
+  selected <- select_latest_significant_activity(latest_ride_fixture |> dplyr::slice(2)) |>
+    dplyr::mutate(activity_name = "Fixture ride")
+  availability <- latest_ride_stream_availability(empty_latest_ride_streams())
+  expect_equal(nrow(selected), 1L)
+  expect_true(all(!availability))
+  expect_true(inherits(latest_ride_identity(selected), "shiny.tag"))
 })
 
 run_test("missing database configuration fails before connection retries", {

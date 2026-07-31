@@ -49,6 +49,13 @@ Run the focused regression suite from the repository root:
 Rscript tests/run_tests.R
 ```
 
+## Latest Ride dashboard page
+
+The landing page shows the most recent cycling activity of at least 20 miles,
+then loads telemetry and Gold power efforts only for that selected ride. Its
+temporary selection policy and platform-product gaps are documented in
+[`docs/latest-ride.md`](docs/latest-ride.md).
+
 ## Ride Summary PDF
 
 Generate a compact post-ride coaching report with:
