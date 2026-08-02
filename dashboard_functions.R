@@ -24,6 +24,7 @@ get_activities <- function(
       activity_id,
       is_trainer,
       sport_type,
+      start_datetime_local,
       start_date_local,
       distance_metres,
       moving_time_seconds,
@@ -288,6 +289,7 @@ build_activity_summary <- function(activities) {
     select(
       activity_id,
       sport_type,
+      start_datetime_local,
       start_date_local,
       distance_metres,
       moving_time_seconds,
@@ -301,6 +303,22 @@ build_activity_summary <- function(activities) {
       moving_time_hr = moving_time_seconds / 3600,
       elevation_gain_m = elevation_gain_metres
     )
+}
+
+select_latest_ride <- function(activities) {
+  required <- c("activity_id", "sport_type", "start_datetime_local")
+  if (!all(required %in% names(activities))) {
+    stop(
+      "Latest ride selection requires: ",
+      paste(required, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  activities |>
+    filter(.data$sport_type == "Ride", !is.na(.data$start_datetime_local)) |>
+    arrange(desc(.data$start_datetime_local), desc(.data$activity_id)) |>
+    slice_head(n = 1)
 }
 
 get_annual_distance_goal_mi <- function(ytd_stats = NULL) {
@@ -340,10 +358,7 @@ get_annual_distance_goal_label <- function(ytd_stats) {
 }
 
 get_latest_ride_valuebox <- function(activity_summary) {
-  latest_ride <- activity_summary |>
-    filter(sport_type == "Ride") |>
-    arrange(desc(start_date_local)) |>
-    slice_head(n = 1)
+  latest_ride <- select_latest_ride(activity_summary)
 
   if (nrow(latest_ride) == 0) {
     return(valueBox("No rides", icon = "fa-road", color = "#EDF0F1"))

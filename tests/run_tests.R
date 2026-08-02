@@ -67,6 +67,9 @@ activities <- tibble(
   activity_id = c(1, 2, 3),
   is_trainer = c(FALSE, FALSE, TRUE),
   sport_type = c("Ride", "Ride", "VirtualRide"),
+  start_datetime_local = as.POSIXct(c(
+    "2026-07-20 08:00:00", "2026-07-21 08:00:00", "2025-07-20 08:00:00"
+  )),
   start_date_local = as.Date(c("2026-07-20", "2026-07-21", "2025-07-20")),
   distance_metres = c(10, 20, 5) * metres_per_mile,
   moving_time_seconds = c(3600, 7200, 1800),
@@ -93,6 +96,21 @@ run_test("activity without streams remains in the activity summary", {
     sum(summary$distance_mi[year(summary$start_date_local) == 2026]),
     30
   )
+})
+
+run_test("latest ride uses start time when rides share a date", {
+  same_day <- tibble(
+    activity_id = c(19501207283, 19502918454),
+    sport_type = c("Ride", "Ride"),
+    start_datetime_local = as.POSIXct(c(
+      "2026-07-28 05:13:09", "2026-07-28 17:18:51"
+    )),
+    start_date_local = as.Date(c("2026-07-28", "2026-07-28")),
+    distance_metres = c(213806, 13047.5)
+  )
+  latest <- select_latest_ride(same_day)
+
+  expect_equal(latest$activity_id, 19502918454)
 })
 
 run_test("activity without streams contributes to YTD totals", {

@@ -253,16 +253,7 @@ format_dashboard_number <- function(value, digits = 0) {
 }
 
 get_latest_ride_summary <- function(activities) {
-  latest_ride <- activities |>
-    dplyr::filter(.data$sport_type == "Ride") |>
-    dplyr::select(
-      "activity_id",
-      "start_date_local",
-      "distance_metres"
-    ) |>
-    dplyr::distinct() |>
-    dplyr::arrange(dplyr::desc(.data$start_date_local)) |>
-    dplyr::slice_head(n = 1)
+  latest_ride <- select_latest_ride(activities)
 
   if (nrow(latest_ride) == 0) {
     return("Latest ride: none")
