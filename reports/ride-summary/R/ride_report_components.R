@@ -230,3 +230,224 @@ plot_effort_traces <- function(effort_streams, effort_name) {
     ride_report_theme()
   list(power = power, elevation = elevation)
 }
+
+format_lap_summary_table <- function(lap_model) {
+  if (nrow(lap_model) == 0L) return(tibble::tibble())
+  lap_model |>
+    dplyr::transmute(
+      Lap = .data$effort_name,
+      Distance = purrr::map_chr(
+        .data$distance_metres * 0.000621371,
+        format_metric,
+        suffix = " mi",
+        digits = 1
+      ),
+      Time = purrr::map_chr(.data$moving_time_seconds, format_duration),
+      `Avg power` = purrr::map_chr(
+        .data$average_power_watts,
+        format_metric,
+        suffix = " W"
+      ),
+      NP = purrr::map_chr(
+        .data$normalized_power_watts,
+        format_metric,
+        suffix = " W"
+      ),
+      `Avg HR` = purrr::map_chr(
+        .data$average_heartrate_bpm,
+        format_metric,
+        suffix = " bpm"
+      ),
+      Cadence = purrr::map_chr(
+        .data$average_cadence_rpm,
+        format_metric,
+        suffix = " rpm"
+      ),
+      Speed = purrr::map_chr(
+        .data$average_speed_miles_per_hour,
+        format_metric,
+        suffix = " mph",
+        digits = 1
+      ),
+      Gain = purrr::map_chr(
+        .data$elevation_gain_metres,
+        format_metric,
+        suffix = " m"
+      )
+    )
+}
+
+format_coaching_effort_summary_table <- function(selected_efforts) {
+  if (nrow(selected_efforts) == 0L) return(tibble::tibble())
+
+  selected_efforts |>
+    dplyr::transmute(
+      Interval = paste0(
+        .data$coaching_effort_number,
+        " (",
+        .data$source_lap_name,
+        ")"
+      ),
+      Power = purrr::map_chr(
+        .data$average_power_watts,
+        format_metric,
+        suffix = " W"
+      ),
+      Duration = purrr::map_chr(.data$moving_time_seconds, format_duration),
+      Cadence = purrr::map_chr(
+        .data$average_cadence_rpm,
+        format_metric,
+        suffix = " rpm"
+      ),
+      VAM = purrr::map_chr(
+        .data$vam_metres_per_hour,
+        format_metric,
+        suffix = " m/h"
+      )
+    )
+}
+
+format_recovery_summary_table <- function(recovery_intervals) {
+  if (nrow(recovery_intervals) == 0L) return(tibble::tibble())
+
+  recovery_intervals |>
+    dplyr::transmute(
+      Recovery = .data$recovery_name,
+      Duration = purrr::map_chr(.data$moving_time_seconds, format_duration),
+      `Average power` = purrr::map_chr(
+        .data$average_power_watts,
+        format_metric,
+        suffix = " W"
+      )
+    )
+}
+
+plot_coaching_effort_metric <- function(
+  effort_streams,
+  value_column,
+  title,
+  y_label,
+  colour,
+  fill = NULL
+) {
+  if (nrow(effort_streams) == 0L ||
+    !value_column %in% names(effort_streams) ||
+    all(is.na(effort_streams[[value_column]]))) return(NULL)
+
+  plot <- ggplot2::ggplot(
+    effort_streams,
+    ggplot2::aes(x = effort_time_minutes, y = .data[[value_column]])
+  )
+  if (!is.null(fill)) {
+    value_range <- range(effort_streams[[value_column]], na.rm = TRUE)
+    baseline <- value_range[[1]] - max(diff(value_range) * 0.08, 2)
+    plot_data <- effort_streams |>
+      dplyr::mutate(plot_baseline = baseline)
+    plot <- ggplot2::ggplot(
+      plot_data,
+      ggplot2::aes(x = effort_time_minutes, y = .data[[value_column]])
+    ) + ggplot2::geom_ribbon(
+      ggplot2::aes(
+        ymin = .data$plot_baseline,
+        ymax = .data[[value_column]]
+      ),
+      fill = fill,
+      colour = colour,
+      linewidth = 0.3,
+      alpha = 0.65,
+      na.rm = TRUE
+    )
+  } else {
+    plot <- plot + ggplot2::geom_line(
+      colour = colour,
+      linewidth = 0.4,
+      na.rm = TRUE
+    )
+  }
+  plot +
+    ggplot2::labs(title = title, x = "Time in lap (min)", y = y_label) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(mult = c(0.02, 0.08))) +
+    ride_report_theme()
+}
+
+plot_coaching_effort_traces <- function(effort_streams) {
+  plots <- list(
+    power = plot_coaching_effort_metric(
+      effort_streams,
+      "watts",
+      "Power",
+      "Power (W)",
+      report_colours$ink
+    ),
+    heart_rate = plot_coaching_effort_metric(
+      effort_streams,
+      "heartrate_bpm",
+      "Heart rate",
+      "Heart rate (bpm)",
+      report_colours$heart
+    ),
+    elevation = plot_coaching_effort_metric(
+      effort_streams,
+      "altitude_metres",
+      "Elevation",
+      "Elevation (m)",
+      report_colours$elevation,
+      "#D7E3D2"
+    )
+  )
+  plots[!vapply(plots, is.null, logical(1))]
+}
+
+render_coaching_effort_page <- function(effort, streams) {
+  effort_model <- build_coaching_effort_model(effort, streams)
+  effort_summary <- effort_model$summary
+  effort_plots <- plot_coaching_effort_traces(effort_model$streams)
+
+  cat(
+    "## ",
+    effort_summary$coaching_effort_name[[1]],
+    "\n\n",
+    sep = ""
+  )
+  summary_cards(list(
+    Distance = format_metric(
+      effort_summary$distance_metres * 0.000621371,
+      " mi",
+      1
+    ),
+    Duration = format_duration(effort_summary$moving_time_seconds),
+    `Elevation gain` = format_metric(
+      effort_summary$elevation_gain_metres,
+      " m"
+    ),
+    `Average power` = format_metric(
+      effort_summary$average_power_watts,
+      " W"
+    ),
+    `Normalized Power` = format_metric(
+      effort_summary$normalized_power_watts,
+      " W"
+    ),
+    `Average HR` = format_metric(
+      effort_summary$average_heartrate_bpm,
+      " bpm"
+    ),
+    `Average cadence` = format_metric(
+      effort_summary$average_cadence_rpm,
+      " rpm"
+    ),
+    `Average speed` = format_metric(
+      effort_summary$average_speed_miles_per_hour,
+      " mph",
+      1
+    ),
+    VAM = format_metric(effort_summary$vam_metres_per_hour, " m/h")
+  ), pairs_per_row = 3L)
+  cat("\n\n")
+
+  if (length(effort_plots) == 0L) {
+    cat("Telemetry is unavailable for this lap.\n\n")
+  } else {
+    for (plot in effort_plots) print(plot)
+  }
+}

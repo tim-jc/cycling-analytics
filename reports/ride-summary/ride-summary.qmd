@@ -18,6 +18,8 @@ params:
   project_root: "."
   ftp_watts: null
   session_objective: null
+  rider_notes: null
+  coach_observations: null
 ---
 
 ```{r}
@@ -45,15 +47,35 @@ DBI::dbDisconnect(con)
 activity <- ride_data$activity
 streams <- ride_data$streams
 best_efforts <- ride_data$best_efforts
+laps <- ride_data$laps
 continuous_best_efforts <- filter_continuous_efforts(best_efforts)
 ftp_watts <- as.numeric(params$ftp_watts %||% NA_real_)
 session_objective <- params$session_objective %||%
   Sys.getenv("RIDE_REPORT_SESSION_OBJECTIVE", unset = "")
-selected_efforts <- select_coaching_efforts(continuous_best_efforts)
+rider_notes <- params$rider_notes %||%
+  Sys.getenv("RIDE_REPORT_RIDER_NOTES", unset = "")
+coach_observations <- params$coach_observations %||%
+  Sys.getenv("RIDE_REPORT_COACH_OBSERVATIONS", unset = "")
+lap_model <- prepare_lap_presentation_model(laps, streams, activity)
+selected_efforts <- select_coaching_efforts(lap_model) |>
+  prepare_coaching_effort_presentation()
+recovery_intervals <- summarise_recovery_intervals(
+  lap_model,
+  selected_efforts
+)
 zone_data <- build_power_zones(streams, ftp_watts)
 ```
 
-**Session objective:** `r ifelse(nzchar(session_objective), session_objective, "Not supplied")`
+**Session objective:** `r ifelse(nzchar(session_objective), session_objective, "Not documented")`
+
+```{r}
+#| results: asis
+rider_note_lines <- split_report_notes(rider_notes)
+if (length(rider_note_lines) > 0L) {
+  cat("\n**Rider notes:**\n\n")
+  cat(paste0("- ", rider_note_lines, collapse = "\n"), "\n")
+}
+```
 
 # Ride overview
 
@@ -119,9 +141,15 @@ summary_cards(list(
 
 # Laps
 
-Lap analysis is intentionally unavailable until cycling-platform publishes a
-curated lap product with distance, time, power, NP, heart rate, cadence, speed
-and elevation gain.
+```{r}
+#| results: asis
+lap_table <- format_lap_summary_table(lap_model)
+if (nrow(lap_table) == 0L) {
+  cat("No canonical laps are available for this activity.")
+} else {
+  print(compact_table(lap_table))
+}
+```
 
 ```{r}
 #| results: asis
@@ -130,62 +158,127 @@ if (nrow(selected_efforts) > 0L) {
 }
 ```
 
-# Key efforts
+# Selected Coaching Efforts
 
 ```{r}
 #| results: asis
 if (nrow(selected_efforts) == 0L) {
-  cat(
-    "No eligible Best 20 min effort is available for this ride. ",
-    "Longest/highest-NP/fastest climb selection requires a trusted climb product."
+  boundaries_available <- nrow(lap_model) > 0L && any(
+    !is.na(lap_model$start_time_seconds) &
+      !is.na(lap_model$end_time_seconds)
   )
+  if (!boundaries_available && nrow(lap_model) > 0L) {
+    cat(
+      "Canonical lap time boundaries are unavailable for this ride.\n\n",
+      "Individual coaching efforts could not be evaluated. The complete ",
+      "canonical lap summary remains available above."
+    )
+  } else {
+    cat(
+      "No individual coaching efforts were selected for detailed review.\n\n",
+      "This ride consisted primarily of steady pacing or did not contain ",
+      "laps meeting the current selection criteria."
+    )
+  }
 }
 ```
 
 ```{r}
-#| label: effort-pages
+#| results: asis
+if (nrow(selected_efforts) > 0L) {
+  cat("## Interval summary\n\n")
+  print(compact_table(format_coaching_effort_summary_table(selected_efforts)))
+
+  recovery_table <- format_recovery_summary_table(recovery_intervals)
+  if (nrow(recovery_table) > 0L) {
+    cat("\n\n## Recovery summary\n\n")
+    print(compact_table(recovery_table))
+  }
+  cat("```{=typst}\n#pagebreak()\n```\n\n")
+}
+```
+
+```{r}
+#| label: effort-page-1
 #| results: asis
 #| fig-width: 7.2
-#| fig-height: 2.25
+#| fig-height: 1.6
+if (nrow(selected_efforts) >= 1L) {
+  render_coaching_effort_page(selected_efforts[1, ], streams)
+}
+```
+
+```{r}
+#| results: asis
+if (nrow(selected_efforts) >= 2L) {
+  cat("```{=typst}\n#pagebreak()\n```\n\n")
+}
+```
+
+```{r}
+#| label: effort-page-2
+#| results: asis
+#| fig-width: 7.2
+#| fig-height: 1.6
+if (nrow(selected_efforts) >= 2L) {
+  render_coaching_effort_page(selected_efforts[2, ], streams)
+}
+```
+
+```{r}
+#| results: asis
+if (nrow(selected_efforts) >= 3L) {
+  cat("```{=typst}\n#pagebreak()\n```\n\n")
+}
+```
+
+```{r}
+#| label: effort-page-3
+#| results: asis
+#| fig-width: 7.2
+#| fig-height: 1.6
+if (nrow(selected_efforts) >= 3L) {
+  render_coaching_effort_page(selected_efforts[3, ], streams)
+}
+```
+
+```{r}
+#| results: asis
+if (nrow(selected_efforts) >= 4L) {
+  cat("```{=typst}\n#pagebreak()\n```\n\n")
+}
+```
+
+```{r}
+#| label: effort-page-4
+#| results: asis
+#| fig-width: 7.2
+#| fig-height: 1.6
+if (nrow(selected_efforts) >= 4L) {
+  render_coaching_effort_page(selected_efforts[4, ], streams)
+}
+```
+
+```{r}
+#| results: asis
+if (nrow(selected_efforts) >= 5L) {
+  cat("```{=typst}\n#pagebreak()\n```\n\n")
+}
+```
+
+```{r}
+#| label: effort-page-5
+#| results: asis
+#| fig-width: 7.2
+#| fig-height: 1.6
+if (nrow(selected_efforts) >= 5L) {
+  render_coaching_effort_page(selected_efforts[5, ], streams)
+}
+```
+
+```{r}
+#| results: asis
 if (nrow(selected_efforts) > 0L) {
-  for (effort_index in seq_len(nrow(selected_efforts))) {
-    effort_model <- build_effort_summary(selected_efforts[effort_index, ], streams)
-    effort_summary <- effort_model$summary
-    effort_plots <- plot_effort_traces(
-      effort_model$context_streams, effort_summary$name[[1]]
-    )
-    cat("## ", effort_summary$name[[1]], "\n\n", sep = "")
-    summary_cards(list(
-      Distance = format_metric(effort_summary$distance_miles, " mi", 1),
-      Duration = format_duration(effort_summary$duration_seconds),
-      `Average power` = format_metric(effort_summary$average_power_watts, " W"),
-      `Average HR` = format_metric(
-        effort_summary$average_heartrate_bpm, " bpm"
-      ),
-      `Average cadence` = format_metric(
-        effort_summary$average_cadence_rpm, " rpm"
-      ),
-      `Estimated elevation gain*` = format_metric(
-        effort_summary$elevation_gain_metres, " m"
-      ),
-      `Estimated VAM*` = format_metric(
-        effort_summary$vam_metres_per_hour, " m/h"
-      )
-    ))
-    cat("\n\n")
-    if (!is.null(effort_plots)) {
-      print(effort_plots$power)
-      print(effort_plots$elevation)
-    }
-    cat(
-      "\n\n*Elevation gain and VAM are report estimates. ",
-      "The effort window and average power come from Gold best efforts.*\n\n"
-    )
-    cat("The shaded region is the effort; the trace includes 30 s context.\n\n")
-    if (effort_index < nrow(selected_efforts)) {
-      cat("```{=typst}\n#pagebreak()\n```\n\n")
-    }
-  }
   cat("```{=typst}\n#pagebreak()\n```\n\n")
 }
 ```
@@ -265,6 +358,18 @@ print(compact_table(best_power_table))
 - Which missing context - perceived exertion, weather, route or session intent -
   would most change the interpretation?
 
+# Coach observations
+
+```{r}
+#| results: asis
+observation_lines <- split_report_notes(coach_observations)
+if (length(observation_lines) == 0L) {
+  cat("No coach observations documented.")
+} else {
+  cat(paste0("- ", observation_lines, collapse = "\n"))
+}
+```
+
 # Session diagnostics
 
 - **Pacing:** Coach/rider assessment required
@@ -276,15 +381,15 @@ fuelling products do not yet exist.
 # Data provenance and limitations
 
 - Activity summaries and streams: `cycling_platform_silver`.
+- Lap summaries and effort boundaries: `cycling_platform_silver.activity_laps`.
 - Best-power windows: `cycling_platform_gold.activity_best_efforts`.
 - Gold effort windows whose elapsed span exceeds their requested duration are
   excluded. The platform must provide the next valid continuous window before
   that duration can appear in this report.
-- Laps are omitted pending a curated platform product.
 - Estimated NP, VI, IF and TSS are deliberately omitted pending canonical
   platform products.
-- Effort elevation gain, VAM and zones are isolated report-only calculations,
-  not canonical platform facts.
+- Lap VAM, effort selection and zones are isolated report-only presentation
+  calculations, not canonical platform facts.
 - Bike name requires an agreed bike-library interface.
 - Wind, detected climbs/intervals, FTP history,
   training-load metrics and HR-power decoupling are not currently available as

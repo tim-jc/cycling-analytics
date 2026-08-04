@@ -46,10 +46,29 @@ get_ride_best_efforts <- function(con, activity_id) {
     tibble::as_tibble()
 }
 
+get_ride_laps <- function(con, activity_id) {
+  DBI::dbGetQuery(
+    con,
+    "SELECT lap_id, activity_id, lap_index, lap_name,
+      start_datetime_local, elapsed_time_seconds, moving_time_seconds,
+      distance_metres, start_sample_index, end_sample_index,
+      start_time_seconds, end_time_seconds,
+      average_speed_metres_per_second, average_cadence_rpm,
+      average_power_watts, average_heartrate_bpm,
+      maximum_heartrate_bpm, elevation_gain_metres, is_device_watts
+    FROM cycling_platform_silver.activity_laps
+    WHERE activity_id = ?
+    ORDER BY lap_index",
+    params = list(as.character(activity_id))
+  ) |>
+    tibble::as_tibble()
+}
+
 load_ride_report_data <- function(con, activity_id) {
   list(
     activity = get_ride_activity(con, activity_id),
     streams = get_ride_streams(con, activity_id),
-    best_efforts = get_ride_best_efforts(con, activity_id)
+    best_efforts = get_ride_best_efforts(con, activity_id),
+    laps = get_ride_laps(con, activity_id)
   )
 }

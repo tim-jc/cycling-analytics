@@ -5,13 +5,16 @@ parse_report_args <- function(args) {
     activity_id = NULL,
     ftp_watts = NA_real_,
     session_objective = "",
+    rider_notes = "",
+    coach_observations = "",
     output_dir = "output/pdf"
   )
   index <- 1L
   while (index <= length(args)) {
     argument <- args[[index]]
     if (!argument %in% c(
-      "--activity-id", "--ftp-watts", "--session-objective", "--output-dir"
+      "--activity-id", "--ftp-watts", "--session-objective",
+      "--rider-notes", "--coach-observations", "--output-dir"
     )) {
       stop("Unknown argument: ", argument, call. = FALSE)
     }
@@ -25,6 +28,10 @@ parse_report_args <- function(args) {
     }
     if (argument == "--session-objective") {
       values$session_objective <- value
+    }
+    if (argument == "--rider-notes") values$rider_notes <- value
+    if (argument == "--coach-observations") {
+      values$coach_observations <- value
     }
     if (argument == "--output-dir") values$output_dir <- value
     index <- index + 2L
@@ -77,18 +84,26 @@ if (is.finite(args$ftp_watts)) {
   )
 }
 
-old_session_objective <- Sys.getenv(
-  "RIDE_REPORT_SESSION_OBJECTIVE",
+report_environment <- c(
+  RIDE_REPORT_SESSION_OBJECTIVE = args$session_objective,
+  RIDE_REPORT_RIDER_NOTES = args$rider_notes,
+  RIDE_REPORT_COACH_OBSERVATIONS = args$coach_observations
+)
+old_report_environment <- Sys.getenv(
+  names(report_environment),
   unset = NA_character_
 )
 on.exit({
-  if (is.na(old_session_objective)) {
-    Sys.unsetenv("RIDE_REPORT_SESSION_OBJECTIVE")
-  } else {
-    Sys.setenv(RIDE_REPORT_SESSION_OBJECTIVE = old_session_objective)
+  for (environment_name in names(report_environment)) {
+    old_value <- old_report_environment[[environment_name]]
+    if (is.na(old_value)) {
+      Sys.unsetenv(environment_name)
+    } else {
+      do.call(Sys.setenv, stats::setNames(list(old_value), environment_name))
+    }
   }
 }, add = TRUE)
-Sys.setenv(RIDE_REPORT_SESSION_OBJECTIVE = args$session_objective)
+do.call(Sys.setenv, as.list(report_environment))
 
 status <- system2(quarto, quarto_args)
 if (!identical(status, 0L)) {

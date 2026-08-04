@@ -13,6 +13,7 @@ source("db/db.R")
 source("dashboard_functions.R")
 source("latest_ride_functions.R")
 source("reports/ride-summary/R/ride_report_model.R")
+source("reports/ride-summary/R/ride_report_components.R")
 
 tests_run <- 0L
 
@@ -247,7 +248,12 @@ run_test("a qualifying Latest Ride remains usable without streams", {
   availability <- latest_ride_stream_availability(empty_latest_ride_streams())
   expect_equal(nrow(selected), 1L)
   expect_true(all(!availability))
-  expect_true(inherits(latest_ride_identity(selected), "shiny.tag"))
+  identity <- latest_ride_identity(selected)
+  identity_html <- as.character(identity)
+  expect_true(inherits(identity, "shiny.tag"))
+  expect_true(grepl("Fixture ride", identity_html, fixed = TRUE))
+  expect_true(grepl("Wednesday 22 July 2026, 08:00", identity_html, fixed = TRUE))
+  expect_true(grepl("https://www.strava.com/activities/2", identity_html, fixed = TRUE))
 })
 
 run_test("Latest Ride HR zones use an explicit configured maximum", {
@@ -312,19 +318,124 @@ run_test("missing database configuration fails before connection retries", {
   )
 })
 
-run_test("ride report selects only the eligible 20-minute effort", {
-  efforts <- tibble(
+coaching_lap_fixture <- function(
+  power_ratio,
+  elevation_gain = 0,
+  vam = 0,
+  duration = 1200,
+  telemetry = TRUE,
+  names = paste("Lap", seq_along(power_ratio))
+) {
+  count <- length(power_ratio)
+  tibble(
+    lap_id = seq_len(count),
     activity_id = 1,
-    duration_seconds = c(1200L, 300L, 60L),
-    peak_value = c(220, 280, 360),
-    start_sample_index = c(1L, 100L, 2000L),
-    end_sample_index = c(1200L, 399L, 2059L),
-    start_distance_metres = c(0, 1000, 20000),
-    end_distance_metres = c(10000, 4000, 20500)
+    lap_index = seq_len(count),
+    effort_name = names,
+    elapsed_time_seconds = duration,
+    moving_time_seconds = duration,
+    distance_metres = duration * 8,
+    start_sample_index = seq(1, by = 2000, length.out = count),
+    end_sample_index = start_sample_index + duration - 1,
+    start_time_seconds = seq(0, by = 2000, length.out = count),
+    end_time_seconds = start_time_seconds + duration,
+    start_distance_metres = seq(0, by = 10000, length.out = count),
+    end_distance_metres = start_distance_metres + distance_metres,
+    average_speed_miles_per_hour = 18,
+    average_cadence_rpm = 85,
+    average_power_watts = 180 * power_ratio,
+    normalized_power_watts = NA_real_,
+    average_heartrate_bpm = 145,
+    elevation_gain_metres = elevation_gain,
+    vam_metres_per_hour = vam,
+    net_elevation_change_metres = elevation_gain,
+    telemetry_sample_count = ifelse(telemetry, duration, 0),
+    telemetry_available = telemetry,
+    ride_average_power_watts = 180,
+    power_ratio = power_ratio
   )
-  selected <- select_coaching_efforts(efforts)
+}
 
-  expect_equal(selected$duration_seconds, 1200L)
+run_test("interval ride selects several coaching efforts", {
+  laps <- coaching_lap_fixture(
+    c(0.75, 1.30, 0.55, 1.25, 0.55, 1.20, 0.70),
+    names = c(
+      "Warm up", "Interval 1", "Recovery", "Interval 2",
+      "Recovery 2", "Threshold", "Cool down"
+    )
+  )
+  selected <- select_coaching_efforts(laps)
+
+  expect_equal(selected$effort_name, c("Interval 1", "Interval 2", "Threshold"))
+})
+
+run_test("mountain ride selects principal climbs without duplicates", {
+  laps <- coaching_lap_fixture(
+    power_ratio = c(0.95, 0.90, 1.02),
+    elevation_gain = c(420, 20, 280),
+    vam = c(720, 80, 650),
+    duration = c(2100, 600, 1500),
+    names = c("Long climb", "Descent", "Steep climb")
+  )
+  selected <- select_coaching_efforts(laps)
+
+  expect_equal(selected$effort_name, c("Long climb", "Steep climb"))
+  expect_equal(length(unique(selected$lap_id)), nrow(selected))
+})
+
+run_test("steady endurance ride selects no individual efforts", {
+  laps <- coaching_lap_fixture(rep(1, 6), duration = rep(3600, 6))
+  expect_equal(nrow(select_coaching_efforts(laps)), 0L)
+})
+
+run_test("incomplete lap telemetry degrades without selecting an effort", {
+  laps <- coaching_lap_fixture(c(1.35, 1.25), telemetry = c(FALSE, TRUE))
+  selected <- select_coaching_efforts(laps)
+
+  expect_equal(selected$lap_id, 2L)
+})
+
+run_test("many high-quality laps are limited to five effort pages", {
+  laps <- coaching_lap_fixture(seq(1.15, 1.42, length.out = 10))
+  selected <- select_coaching_efforts(laps)
+
+  expect_equal(nrow(selected), 5L)
+  expect_equal(length(unique(selected$lap_id)), 5L)
+})
+
+run_test("selected laps receive coaching interval names", {
+  selected <- coaching_lap_fixture(c(1.3, 1.2), names = c("Lap 8", "Lap 10")) |>
+    prepare_coaching_effort_presentation()
+
+  expect_equal(
+    selected$coaching_effort_name,
+    c("Interval 1 (Lap 8)", "Interval 2 (Lap 10)")
+  )
+})
+
+run_test("laps between selected efforts form duration-weighted recoveries", {
+  laps <- coaching_lap_fixture(
+    c(1.3, 0.6, 0.5, 1.25),
+    duration = c(240, 300, 600, 240),
+    names = c("Lap 8", "Lap 9", "Lap 10", "Lap 11")
+  ) |>
+    mutate(average_power_watts = c(340, 100, 130, 335))
+  selected <- laps[c(1, 4), ] |>
+    prepare_coaching_effort_presentation()
+  recoveries <- summarise_recovery_intervals(laps, selected)
+
+  expect_equal(recoveries$recovery_name, "R1")
+  expect_equal(recoveries$moving_time_seconds, 900)
+  expect_equal(recoveries$average_power_watts, 120)
+  expect_equal(recoveries$source_laps, "Lap 9, Lap 10")
+})
+
+run_test("optional report notes accept pipes or newlines", {
+  expect_equal(
+    split_report_notes("First note|Second note\nThird note"),
+    c("First note", "Second note", "Third note")
+  )
+  expect_equal(split_report_notes(""), character())
 })
 
 run_test("ride report power zones degrade gracefully without FTP", {
@@ -343,7 +454,7 @@ run_test("ride report excludes discontinuous Gold effort windows", {
   expect_equal(continuous$duration_seconds, 60L)
 })
 
-run_test("ride report effort trace includes 30-second context", {
+run_test("coaching effort telemetry is normalised to the lap", {
   streams <- tibble(
     sample_index = 1:181,
     time_seconds = 0:180,
@@ -353,20 +464,60 @@ run_test("ride report effort trace includes 30-second context", {
     heartrate_bpm = 140,
     cadence_rpm = 85
   )
-  effort <- tibble(
-    effort_name = "Best 1 min power",
-    start_sample_index = 61L,
-    end_sample_index = 121L,
-    start_time_seconds = 60L,
-    end_time_seconds = 120L,
-    start_distance_metres = 60,
-    end_distance_metres = 120,
-    duration_seconds = 60L,
-    peak_value = 200
-  )
-  model <- build_effort_summary(effort, streams)
+  effort <- coaching_lap_fixture(1.3, duration = 61) |>
+    mutate(
+      start_sample_index = 61L,
+      end_sample_index = 121L,
+      start_time_seconds = 60,
+      end_time_seconds = 121,
+      start_distance_metres = 60,
+      end_distance_metres = 120
+    )
+  model <- build_coaching_effort_model(effort, streams)
 
-  expect_equal(range(model$context_streams$relative_time_minutes), c(-0.5, 1.5))
+  expect_equal(range(model$streams$effort_time_minutes), c(0, 1))
+  expect_equal(range(model$streams$effort_distance_miles), c(0, 60 * 0.000621371))
+})
+
+run_test("coaching effort telemetry uses canonical time boundaries", {
+  streams <- tibble(
+    sample_index = 1:300,
+    time_seconds = 0:299,
+    distance_metres = 0:299,
+    altitude_metres = 100 + (0:299) / 10,
+    watts = c(rep(100, 100), rep(300, 60), rep(100, 140)),
+    heartrate_bpm = 140,
+    cadence_rpm = 85
+  )
+  effort <- coaching_lap_fixture(1.3, duration = 60) |>
+    mutate(
+      start_sample_index = 1L,
+      end_sample_index = 60L,
+      start_time_seconds = 100,
+      end_time_seconds = 160
+    )
+  model <- build_coaching_effort_model(effort, streams)
+
+  expect_equal(nrow(model$streams), 60L)
+  expect_equal(mean(model$streams$watts), 300)
+})
+
+run_test("coaching effort elevation scale is local to the lap", {
+  elevation <- tibble(
+    effort_time_minutes = 0:4,
+    altitude_metres = c(120, 125, 130, 140, 150)
+  )
+  plot <- plot_coaching_effort_metric(
+    elevation,
+    "altitude_metres",
+    "Elevation",
+    "Elevation (m)",
+    report_colours$elevation,
+    "#D7E3D2"
+  )
+  y_range <- ggplot2::ggplot_build(plot)$layout$panel_params[[1]]$y.range
+
+  expect_true(y_range[[1]] > 100)
 })
 
 cat(sprintf("\n%d tests passed.\n", tests_run))

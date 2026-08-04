@@ -89,29 +89,6 @@ dashboard_stage("Load data", {
   padding: 9px 14px;
 }
 
-.latest-ride-identity {
-  border-left: 5px solid #17324D;
-  background: #F5F8FA;
-  height: 100%;
-  padding: 10px 16px;
-}
-
-.latest-ride-identity h3 {
-  color: #17324D;
-  margin: 0 0 4px;
-}
-
-.latest-ride-identity p {
-  margin: 2px 0;
-}
-
-.latest-ride-rule {
-  color: #687785;
-  display: block;
-  font-size: 11px;
-  margin-top: 3px;
-}
-
 .latest-ride-notice {
   align-items: center;
   background: #F5F8FA;
