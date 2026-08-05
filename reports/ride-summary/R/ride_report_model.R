@@ -141,6 +141,8 @@ prepare_lap_presentation_model <- function(laps, streams, activity) {
 identify_coaching_effort_candidates <- function(
   lap_model,
   minimum_duration_seconds = 180,
+  minimum_strong_duration_seconds = 120,
+  strong_power_ratio = 1.20,
   minimum_moving_ratio = 0.75
 ) {
   if (nrow(lap_model) == 0L) return(lap_model)
@@ -161,11 +163,58 @@ identify_coaching_effort_candidates <- function(
     ) |>
     dplyr::filter(
       !is.na(.data$moving_time_seconds),
-      .data$moving_time_seconds >= minimum_duration_seconds,
+      .data$moving_time_seconds >= minimum_duration_seconds |
+        (
+          .data$moving_time_seconds >= minimum_strong_duration_seconds &
+            !is.na(.data$power_ratio) &
+            .data$power_ratio >= strong_power_ratio
+        ),
       is.na(.data$moving_ratio) | .data$moving_ratio >= minimum_moving_ratio,
       !.data$excluded_by_name,
       .data$telemetry_available
     )
+}
+
+identify_coherent_work_set <- function(
+  candidates,
+  minimum_repetitions = 3L,
+  power_tolerance = 0.10
+) {
+  if (nrow(candidates) < minimum_repetitions) return(candidates[0, ])
+
+  eligible <- candidates |>
+    dplyr::filter(
+      .data$power_signal,
+      .data$moving_time_seconds >= 120,
+      !is.na(.data$average_power_watts)
+    )
+  if (nrow(eligible) < minimum_repetitions) return(candidates[0, ])
+
+  representative_power <- stats::median(
+    eligible$average_power_watts,
+    na.rm = TRUE
+  )
+  coherent <- eligible |>
+    dplyr::filter(
+      abs(.data$average_power_watts / representative_power - 1) <=
+        power_tolerance
+    ) |>
+    dplyr::arrange(.data$lap_index)
+  if (nrow(coherent) < minimum_repetitions) return(candidates[0, ])
+
+  # A coherent work set has at least one canonical lap between repetitions.
+  # This distinguishes repeated work/recovery structure from adjacent strong
+  # laps that happen to have similar power.
+  keep <- logical(nrow(coherent))
+  last_lap_index <- -Inf
+  for (index in seq_len(nrow(coherent))) {
+    if (coherent$lap_index[[index]] >= last_lap_index + 2L) {
+      keep[[index]] <- TRUE
+      last_lap_index <- coherent$lap_index[[index]]
+    }
+  }
+  coherent <- coherent[keep, ]
+  if (nrow(coherent) < minimum_repetitions) candidates[0, ] else coherent
 }
 
 rank_coaching_effort_candidates <- function(candidates) {
@@ -225,6 +274,7 @@ apply_coaching_effort_significance <- function(
 select_coaching_efforts <- function(
   lap_model,
   maximum_efforts = 5L,
+  coherent_set_ceiling = 10L,
   significance_threshold = 1.5
 ) {
   candidates <- identify_coaching_effort_candidates(lap_model) |>
@@ -252,8 +302,17 @@ select_coaching_efforts <- function(
     metric_winner(candidates, "elevation_gain_metres", "climb_signal"),
     metric_winner(candidates, "vam_metres_per_hour", "climb_signal")
   ))
+  coherent_ids <- as.character(
+    identify_coherent_work_set(candidates)$lap_id
+  )
   ranked_ids <- as.character(candidates$lap_id)
-  selected_ids <- utils::head(unique(c(winner_ids, ranked_ids)), maximum_efforts)
+  selection_limit <- if (length(coherent_ids) > 0L) {
+    max(maximum_efforts, min(length(coherent_ids), coherent_set_ceiling))
+  } else maximum_efforts
+  selected_ids <- utils::head(
+    unique(c(coherent_ids, winner_ids, ranked_ids)),
+    selection_limit
+  )
 
   candidates |>
     dplyr::filter(as.character(.data$lap_id) %in% selected_ids) |>

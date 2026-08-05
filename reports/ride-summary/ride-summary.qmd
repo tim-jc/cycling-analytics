@@ -201,8 +201,8 @@ if (nrow(selected_efforts) > 0L) {
 ```{r}
 #| label: effort-page-1
 #| results: asis
-#| fig-width: 7.2
-#| fig-height: 1.6
+#| fig-width: 6.8
+#| fig-height: 4.8
 if (nrow(selected_efforts) >= 1L) {
   render_coaching_effort_page(selected_efforts[1, ], streams)
 }
@@ -218,8 +218,8 @@ if (nrow(selected_efforts) >= 2L) {
 ```{r}
 #| label: effort-page-2
 #| results: asis
-#| fig-width: 7.2
-#| fig-height: 1.6
+#| fig-width: 6.8
+#| fig-height: 4.8
 if (nrow(selected_efforts) >= 2L) {
   render_coaching_effort_page(selected_efforts[2, ], streams)
 }
@@ -235,8 +235,8 @@ if (nrow(selected_efforts) >= 3L) {
 ```{r}
 #| label: effort-page-3
 #| results: asis
-#| fig-width: 7.2
-#| fig-height: 1.6
+#| fig-width: 6.8
+#| fig-height: 4.8
 if (nrow(selected_efforts) >= 3L) {
   render_coaching_effort_page(selected_efforts[3, ], streams)
 }
@@ -252,8 +252,8 @@ if (nrow(selected_efforts) >= 4L) {
 ```{r}
 #| label: effort-page-4
 #| results: asis
-#| fig-width: 7.2
-#| fig-height: 1.6
+#| fig-width: 6.8
+#| fig-height: 4.8
 if (nrow(selected_efforts) >= 4L) {
   render_coaching_effort_page(selected_efforts[4, ], streams)
 }
@@ -269,10 +269,95 @@ if (nrow(selected_efforts) >= 5L) {
 ```{r}
 #| label: effort-page-5
 #| results: asis
-#| fig-width: 7.2
-#| fig-height: 1.6
+#| fig-width: 6.8
+#| fig-height: 4.8
 if (nrow(selected_efforts) >= 5L) {
   render_coaching_effort_page(selected_efforts[5, ], streams)
+}
+```
+
+```{r}
+#| results: asis
+if (nrow(selected_efforts) >= 6L) {
+  cat("```{=typst}\n#pagebreak()\n```\n\n")
+}
+```
+
+```{r}
+#| label: effort-page-6
+#| results: asis
+#| fig-width: 6.8
+#| fig-height: 4.8
+if (nrow(selected_efforts) >= 6L) {
+  render_coaching_effort_page(selected_efforts[6, ], streams)
+}
+```
+
+```{r}
+#| results: asis
+if (nrow(selected_efforts) >= 7L) {
+  cat("```{=typst}\n#pagebreak()\n```\n\n")
+}
+```
+
+```{r}
+#| label: effort-page-7
+#| results: asis
+#| fig-width: 6.8
+#| fig-height: 4.8
+if (nrow(selected_efforts) >= 7L) {
+  render_coaching_effort_page(selected_efforts[7, ], streams)
+}
+```
+
+```{r}
+#| results: asis
+if (nrow(selected_efforts) >= 8L) {
+  cat("```{=typst}\n#pagebreak()\n```\n\n")
+}
+```
+
+```{r}
+#| label: effort-page-8
+#| results: asis
+#| fig-width: 6.8
+#| fig-height: 4.8
+if (nrow(selected_efforts) >= 8L) {
+  render_coaching_effort_page(selected_efforts[8, ], streams)
+}
+```
+
+```{r}
+#| results: asis
+if (nrow(selected_efforts) >= 9L) {
+  cat("```{=typst}\n#pagebreak()\n```\n\n")
+}
+```
+
+```{r}
+#| label: effort-page-9
+#| results: asis
+#| fig-width: 6.8
+#| fig-height: 4.8
+if (nrow(selected_efforts) >= 9L) {
+  render_coaching_effort_page(selected_efforts[9, ], streams)
+}
+```
+
+```{r}
+#| results: asis
+if (nrow(selected_efforts) >= 10L) {
+  cat("```{=typst}\n#pagebreak()\n```\n\n")
+}
+```
+
+```{r}
+#| label: effort-page-10
+#| results: asis
+#| fig-width: 6.8
+#| fig-height: 4.8
+if (nrow(selected_efforts) >= 10L) {
+  render_coaching_effort_page(selected_efforts[10, ], streams)
 }
 ```
 

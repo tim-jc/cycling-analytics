@@ -398,6 +398,24 @@ plot_coaching_effort_traces <- function(effort_streams) {
   plots[!vapply(plots, is.null, logical(1))]
 }
 
+draw_coaching_effort_traces <- function(plots) {
+  if (length(plots) == 0L) return(invisible(NULL))
+
+  grid::grid.newpage()
+  grid::pushViewport(grid::viewport(
+    layout = grid::grid.layout(length(plots), 1L)
+  ))
+  on.exit(grid::popViewport(), add = TRUE)
+  for (index in seq_along(plots)) {
+    print(
+      plots[[index]],
+      newpage = FALSE,
+      vp = grid::viewport(layout.pos.row = index, layout.pos.col = 1L)
+    )
+  }
+  invisible(NULL)
+}
+
 render_coaching_effort_page <- function(effort, streams) {
   effort_model <- build_coaching_effort_model(effort, streams)
   effort_summary <- effort_model$summary
@@ -448,6 +466,6 @@ render_coaching_effort_page <- function(effort, streams) {
   if (length(effort_plots) == 0L) {
     cat("Telemetry is unavailable for this lap.\n\n")
   } else {
-    for (plot in effort_plots) print(plot)
+    draw_coaching_effort_traces(effort_plots)
   }
 }

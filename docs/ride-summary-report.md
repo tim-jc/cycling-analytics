@@ -46,14 +46,19 @@ Trusted inputs are `silver.activities`, `silver.activity_streams`,
 The complete canonical lap table is always included. A separate editorial
 pipeline then decides whether any laps warrant detailed coaching telemetry:
 
-1. Exclude laps shorter than three minutes, heavily paused laps, explicitly
-   named warm-up/recovery/cool-down laps, and laps without enough telemetry.
+1. Exclude short laps, heavily paused laps, explicitly named
+   warm-up/recovery/cool-down laps, and laps without enough telemetry. The
+   normal minimum is three minutes; a strong power lap may qualify from two
+   minutes.
 2. Identify a genuine signal: power meaningfully above the ride average, or a
    climb with at least 75 m gain and 300 m/h VAM.
 3. Score the signal using relative power, climbing magnitude and sustained
    duration. Require a score of at least 1.5.
 4. Take distinct category winners for average power, sustained power, elevation
-   gain and VAM, then fill by score, with a maximum of five laps.
+   gain and VAM, then fill by score, normally selecting at most five laps.
+5. When at least three strong laps have power within 10% of their median and
+   are separated by recovery laps, treat them as one coherent work set. Keep
+   the complete set together, subject to a hard ceiling of ten effort pages.
 
 Selected laps receive presentation names such as `Interval 1 (Lap 8)`. A
 single-page comparison table precedes the telemetry pages. Canonical laps

@@ -403,6 +403,37 @@ run_test("many high-quality laps are limited to five effort pages", {
   expect_equal(length(unique(selected$lap_id)), 5L)
 })
 
+run_test("coherent work sets retain every recovery-separated effort", {
+  work_ratios <- c(1.42, 1.46, 1.49, 1.47, 1.48, 1.48, 1.48, 1.47)
+  ratios <- as.vector(rbind(work_ratios, rep(0.65, length(work_ratios))))
+  durations <- as.vector(rbind(
+    c(219, 121, 334, 194, 193, 517, 191, 309),
+    rep(180, length(work_ratios))
+  ))
+  names <- as.vector(rbind(
+    paste("Work", seq_along(work_ratios)),
+    paste("Recovery", seq_along(work_ratios))
+  ))
+  laps <- coaching_lap_fixture(ratios, duration = durations, names = names)
+  selected <- select_coaching_efforts(laps)
+
+  expect_equal(selected$effort_name, paste("Work", seq_along(work_ratios)))
+})
+
+run_test("coherent work sets respect the ten-effort hard ceiling", {
+  work_count <- 12L
+  ratios <- as.vector(rbind(rep(1.35, work_count), rep(0.65, work_count)))
+  names <- as.vector(rbind(
+    paste("Work", seq_len(work_count)),
+    paste("Recovery", seq_len(work_count))
+  ))
+  laps <- coaching_lap_fixture(ratios, duration = 240, names = names)
+  selected <- select_coaching_efforts(laps)
+
+  expect_equal(nrow(selected), 10L)
+  expect_equal(selected$effort_name, paste("Work", seq_len(10)))
+})
+
 run_test("selected laps receive coaching interval names", {
   selected <- coaching_lap_fixture(c(1.3, 1.2), names = c("Lap 8", "Lap 10")) |>
     prepare_coaching_effort_presentation()
