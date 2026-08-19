@@ -10,7 +10,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-libs <- c("flexdashboard","tidyverse","plotly","leaflet","leaflet.extras","lubridate","mapdata")
+libs <- c("flexdashboard","tidyverse","plotly","leaflet","lubridate")
 purrr::walk(libs, ~library(.,character.only = T))
 
 dashboard_stage <- function(stage_name, expr) {

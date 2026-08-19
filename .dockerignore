@@ -1,0 +1,21 @@
+# Git
+.git
+.gitignore
+
+# IDE / OS
+.Rproj.user
+.Rhistory
+.RData
+.DS_Store
+
+# Runtime artefacts
+dashboard_refresh.log
+
+# Application outputs and tests
+output/
+tests/
+docs/index.html
+
+# Local renv state
+renv/library/
+renv/staging/

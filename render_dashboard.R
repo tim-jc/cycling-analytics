@@ -100,7 +100,11 @@ run_dashboard_stage <- function(stage_name, expr) {
         as.numeric(difftime(Sys.time(), started_at, units = "secs")),
         getwd()
       ))
-      dashboard_log(sprintf("Stage=%s error=%s", stage_name, conditionMessage(e)))
+      dashboard_log(sprintf(
+        "Stage=%s error=%s",
+        stage_name,
+        conditionMessage(e)
+      ))
       dashboard_log("Failure context:")
       dashboard_log(dashboard_runtime_context())
       stop(e)
@@ -300,7 +304,11 @@ build_notification_context <- function(render_env, rendered_at) {
   )
 }
 
-build_success_notification <- function(render_env, publish_result, rendered_at) {
+build_success_notification <- function(
+  render_env,
+  publish_result,
+  rendered_at
+) {
   context_lines <- strsplit(
     build_notification_context(render_env, rendered_at),
     "\n",
@@ -345,9 +353,7 @@ main <- function() {
         "tidyverse",
         "plotly",
         "leaflet",
-        "leaflet.extras",
         "lubridate",
-        "mapdata",
         "rmarkdown",
         "tibble",
         "tidygeocoder",
@@ -408,22 +414,32 @@ main <- function() {
 
       tryCatch(
         {
-          if (exists("con", envir = render_env, inherits = FALSE) &&
-              DBI::dbIsValid(render_env$con)) {
+          if (
+            exists("con", envir = render_env, inherits = FALSE) &&
+              DBI::dbIsValid(render_env$con)
+          ) {
             log_message("Disconnecting database connection...")
             DBI::dbDisconnect(render_env$con)
           }
 
           dashboard_log(sprintf(
             "Stage=Cleanup status=success elapsed_seconds=%.1f cwd=%s",
-            as.numeric(difftime(Sys.time(), cleanup_started_at, units = "secs")),
+            as.numeric(difftime(
+              Sys.time(),
+              cleanup_started_at,
+              units = "secs"
+            )),
             getwd()
           ))
         },
         error = function(e) {
           dashboard_log(sprintf(
             "Stage=Cleanup status=failed elapsed_seconds=%.1f cwd=%s",
-            as.numeric(difftime(Sys.time(), cleanup_started_at, units = "secs")),
+            as.numeric(difftime(
+              Sys.time(),
+              cleanup_started_at,
+              units = "secs"
+            )),
             getwd()
           ))
           dashboard_log(sprintf("Stage=Cleanup error=%s", conditionMessage(e)))
@@ -447,10 +463,12 @@ main <- function() {
   if (identical(application_config$run_mode, "local_publish")) {
     # Explicit local-development convenience. Production orchestration owns
     # publication and operational notification.
-    publish_result <- if (identical(
-      Sys.getenv("DASHBOARD_SKIP_PUBLISH", ""),
-      "TRUE"
-    )) {
+    publish_result <- if (
+      identical(
+        Sys.getenv("DASHBOARD_SKIP_PUBLISH", ""),
+        "TRUE"
+      )
+    ) {
       run_dashboard_stage("Publish to Git", {
         dashboard_log("Publish skipped by DASHBOARD_SKIP_PUBLISH=TRUE.")
         list(
