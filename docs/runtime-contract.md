@@ -110,7 +110,10 @@ a read-only user able to select:
 - `cycling_platform_gold.activity_best_efforts`
 
 The current dashboard also uses reverse geocoding while preparing map summary
-content. Rendered maps load Carto/OpenStreetMap tiles in the browser.
+content. Rendered maps load CARTO/OpenStreetMap tiles in the browser. CARTO
+raster maps require `CARTO_BASEMAP_API_KEY`; supply it to the container at
+runtime through the production environment or future Compose configuration.
+It must not be embedded in the Dockerfile or image.
 
 ## Local publication convenience
 

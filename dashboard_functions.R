@@ -12,6 +12,40 @@ peaks_units <- tibble::tribble(
 
 # Functions
 
+carto_basemap_api_key <- function() {
+  api_key <- Sys.getenv("CARTO_BASEMAP_API_KEY", unset = "")
+
+  if (!nzchar(api_key)) {
+    stop(
+      paste(
+        "CARTO raster basemaps require CARTO_BASEMAP_API_KEY.",
+        "Configure it in the runtime environment before rendering the dashboard."
+      ),
+      call. = FALSE
+    )
+  }
+
+  api_key
+}
+
+carto_basemap_tile_url <- function(style) {
+  supported_styles <- c(
+    positron = "light_all",
+    voyager_labels_under = "rastertiles/voyager_labels_under"
+  )
+
+  if (!style %in% names(supported_styles)) {
+    stop("Unsupported CARTO basemap style: ", style, call. = FALSE)
+  }
+
+  paste0(
+    "https://{s}.basemaps.cartocdn.com/",
+    unname(supported_styles[[style]]),
+    "/{z}/{x}/{y}.png?key=",
+    utils::URLencode(carto_basemap_api_key(), reserved = TRUE)
+  )
+}
+
 # Activity-grain input for summaries and statistics. Stream availability must
 # not determine whether an activity contributes to activity-level analytics.
 get_activities <- function(
@@ -972,7 +1006,7 @@ draw_best_effort_map <- function(
 
   leaflet() |>
     addTiles(
-      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}.png',
+      carto_basemap_tile_url("voyager_labels_under"),
       attribution = paste(
         '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
         '&copy; <a href="https://cartodb.com/attributions">CartoDB</a>'
@@ -1361,7 +1395,7 @@ draw_map <- function(streams_tbl) {
 
   map <- leaflet() |>
     addTiles(
-      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}.png',
+      carto_basemap_tile_url("voyager_labels_under"),
       attribution = paste(
         '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
         '&copy; <a href="https://cartodb.com/attributions">CartoDB</a>'

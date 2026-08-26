@@ -13,6 +13,16 @@ Rscript -e "renv::restore()"
 
 Configure the database and dashboard environment variables in a local `.Renviron` file or through your shell/CI environment. `.Renviron` is intentionally ignored by git.
 
+CARTO raster maps also require the shared runtime variable:
+
+```text
+CARTO_BASEMAP_API_KEY=<your key>
+```
+
+Use the same variable name in `cycling-analytics` and `coastal`. For a container,
+pass it at runtime through the production environment or Compose environment
+configuration; do not add it to the Dockerfile or image.
+
 Optional dashboard settings:
 
 ```sh

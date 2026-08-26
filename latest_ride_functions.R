@@ -348,7 +348,13 @@ draw_latest_ride_map <- function(streams, sport_type) {
     dplyr::filter(!is.na(.data$latitude), !is.na(.data$longitude))
 
   leaflet::leaflet(route) |>
-    leaflet::addProviderTiles(leaflet::providers$CartoDB.Positron) |>
+    leaflet::addTiles(
+      carto_basemap_tile_url("positron"),
+      attribution = paste(
+        '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+        '&copy; <a href="https://carto.com/attributions">CARTO</a>'
+      )
+    ) |>
     leaflet::addPolylines(
       lng = ~longitude,
       lat = ~latitude,

@@ -6,6 +6,7 @@
 .Rproj.user
 .Rhistory
 .RData
+.Renviron
 .DS_Store
 
 # Runtime artefacts

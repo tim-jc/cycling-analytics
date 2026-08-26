@@ -239,6 +239,7 @@ get_application_config <- function(project_root) {
 
   # Validate database values before connection retries begin.
   get_database_config()
+  carto_basemap_api_key()
 
   list(
     run_mode = run_mode,

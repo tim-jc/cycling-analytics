@@ -61,6 +61,48 @@ expect_error <- function(code, pattern) {
   }
 }
 
+run_test("missing CARTO key gives an actionable, non-secret error", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = NA)
+  error_message <- tryCatch(
+    carto_basemap_api_key(),
+    error = conditionMessage
+  )
+
+  expect_true(grepl("CARTO_BASEMAP_API_KEY", error_message, fixed = TRUE))
+  expect_true(!grepl("test-carto-key", error_message, fixed = TRUE))
+})
+
+run_test("CARTO tile URL preserves the Voyager basemap and adds the key", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+  tile_url <- carto_basemap_tile_url("voyager_labels_under")
+
+  expect_equal(
+    tile_url,
+    paste0(
+      "https://{s}.basemaps.cartocdn.com/",
+      "rastertiles/voyager_labels_under/{z}/{x}/{y}.png?key=test-carto-key"
+    )
+  )
+})
+
+run_test("CARTO tile URL preserves the Positron basemap", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+
+  expect_true(grepl(
+    "/light_all/{z}/{x}/{y}.png?key=test-carto-key",
+    carto_basemap_tile_url("positron"),
+    fixed = TRUE
+  ))
+})
+
+run_test("CARTO configuration does not print the configured key", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+  output <- capture.output(api_key <- carto_basemap_api_key())
+
+  expect_equal(output, character())
+  expect_equal(api_key, "test-carto-key")
+})
+
 metres_per_mile <- 1 / 0.000621371
 reference_date <- as.Date("2026-07-26")
 
