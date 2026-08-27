@@ -14,7 +14,8 @@ dashboard_refresh.log
 
 # Application outputs and tests
 output/
-tests/
+tests/*
+!tests/smoke_check.R
 docs/index.html
 
 # Local renv state

@@ -103,6 +103,11 @@ The entrypoint creates and verifies these directories after the external
 runtime identity has been applied; no production UID or GID is baked into the
 image.
 
+Every image build runs `tests/smoke_check.R` after application assembly. This
+offline check verifies the production files, restored R library and packages,
+Pandoc discovery, and production render-code syntax. It does not connect to
+MariaDB, contact CARTO, render the dashboard, or prove non-root runtime access.
+
 Production mounts its writable persistent output at `/app/output`. The image
 also supplies a writable `/app/output` mount point so an ordinary unmounted
 `docker run` works. No rendering step requires write access to the application

@@ -62,7 +62,6 @@ RUN mkdir -p /app/output \
 
 ENTRYPOINT ["/usr/local/bin/cycling-analytics-entrypoint"]
 
-# TODO: Replace with a proper smoke test once one exists.
-# RUN Rscript tests/smoke_check.R
+RUN Rscript tests/smoke_check.R
 
 CMD ["Rscript", "render_dashboard.R"]
