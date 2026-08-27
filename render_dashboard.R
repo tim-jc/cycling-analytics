@@ -11,16 +11,7 @@ dashboard_log_path <- function() {
     return(configured_log)
   }
 
-  project_root <- Sys.getenv("RENV_PROJECT", "")
-
-  if (!nzchar(project_root)) {
-    project_root <- tryCatch(
-      get_project_root(),
-      error = function(e) getwd()
-    )
-  }
-
-  file.path(project_root, "dashboard_refresh.log")
+  NA_character_
 }
 
 dashboard_log <- function(msg) {
@@ -66,6 +57,16 @@ dashboard_runtime_context <- function() {
     sprintf("cwd=%s", getwd()),
     sprintf("PATH=%s", Sys.getenv("PATH", "")),
     sprintf("HOME=%s", Sys.getenv("HOME", "")),
+    sprintf("TMPDIR=%s", Sys.getenv("TMPDIR", "")),
+    sprintf("XDG_CACHE_HOME=%s", Sys.getenv("XDG_CACHE_HOME", "")),
+    sprintf(
+      "CYCLING_ANALYTICS_RENDER_DIR=%s",
+      Sys.getenv("CYCLING_ANALYTICS_RENDER_DIR", "")
+    ),
+    sprintf(
+      "CYCLING_ANALYTICS_OUTPUT_DIR=%s",
+      Sys.getenv("CYCLING_ANALYTICS_OUTPUT_DIR", "")
+    ),
     sprintf("SHELL=%s", Sys.getenv("SHELL", "")),
     sprintf(".libPaths()=%s", paste(.libPaths(), collapse = " | ")),
     sep = "\n"
@@ -74,7 +75,12 @@ dashboard_runtime_context <- function() {
 
 run_dashboard_stage <- function(stage_name, expr) {
   started_at <- Sys.time()
+  previous_stage <- getOption("cycling_analytics_stage", NULL)
   options(cycling_analytics_stage = stage_name)
+  on.exit(
+    options(cycling_analytics_stage = previous_stage),
+    add = TRUE
+  )
 
   dashboard_log(sprintf(
     "Stage=%s status=started cwd=%s",
@@ -94,6 +100,9 @@ run_dashboard_stage <- function(stage_name, expr) {
       result
     },
     error = function(e) {
+      if (is.null(getOption("cycling_analytics_failed_stage", NULL))) {
+        options(cycling_analytics_failed_stage = stage_name)
+      }
       dashboard_log(sprintf(
         "Stage=%s status=failed elapsed_seconds=%.1f cwd=%s",
         stage_name,
@@ -179,6 +188,39 @@ check_required_packages <- function(packages, project_root) {
   )
 }
 
+prepare_writable_directory <- function(path, label) {
+  dir.create(path, recursive = TRUE, showWarnings = FALSE)
+
+  if (!dir.exists(path)) {
+    stop(
+      label,
+      " directory does not exist and could not be created: ",
+      path,
+      call. = FALSE
+    )
+  }
+
+  path <- normalizePath(path, winslash = "/", mustWork = TRUE)
+  probe <- tempfile(pattern = ".cycling-analytics-write-test-", tmpdir = path)
+  writable <- tryCatch(
+    file.create(probe),
+    warning = function(w) FALSE,
+    error = function(e) FALSE
+  )
+
+  if (isTRUE(writable)) {
+    unlink(probe)
+    return(path)
+  }
+
+  stop(
+    label,
+    " directory is not writable by the runtime user: ",
+    path,
+    call. = FALSE
+  )
+}
+
 get_application_config <- function(project_root) {
   run_mode <- Sys.getenv(
     "CYCLING_ANALYTICS_RUN_MODE",
@@ -230,11 +272,23 @@ get_application_config <- function(project_root) {
     file.path(project_root, configured_output)
   }
 
-  dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
-  output_dir <- normalizePath(
+  output_dir <- prepare_writable_directory(
     output_dir,
-    winslash = "/",
-    mustWork = TRUE
+    "Dashboard output"
+  )
+
+  configured_render <- Sys.getenv(
+    "CYCLING_ANALYTICS_RENDER_DIR",
+    unset = file.path(tempdir(), "cycling-analytics-render")
+  )
+  render_dir <- if (grepl("^/", configured_render)) {
+    configured_render
+  } else {
+    file.path(project_root, configured_render)
+  }
+  render_dir <- prepare_writable_directory(
+    render_dir,
+    "R Markdown intermediate"
   )
 
   # Validate database values before connection retries begin.
@@ -244,7 +298,8 @@ get_application_config <- function(project_root) {
   list(
     run_mode = run_mode,
     timezone = timezone,
-    output_dir = output_dir
+    output_dir = output_dir,
+    render_dir = render_dir
   )
 }
 
@@ -327,6 +382,8 @@ build_success_notification <- function(
 main <- function() {
   # project setup -----------------------------------------------------------
 
+  options(cycling_analytics_failed_stage = NULL)
+
   project_root <- NULL
   old_wd <- NULL
   application_config <- NULL
@@ -395,10 +452,11 @@ main <- function() {
   run_dashboard_stage("Validate configuration", {
     application_config <- get_application_config(project_root)
     dashboard_log(sprintf(
-      "Application configuration: run_mode=%s; timezone=%s; output_dir=%s",
+      "Application configuration: run_mode=%s; timezone=%s; output_dir=%s; render_dir=%s",
       application_config$run_mode,
       application_config$timezone,
-      application_config$output_dir
+      application_config$output_dir,
+      application_config$render_dir
     ))
   })
 
@@ -457,6 +515,7 @@ main <- function() {
       file.path(project_root, "dashboards", "index.Rmd"),
       output_file = "index.html",
       output_dir = application_config$output_dir,
+      intermediates_dir = application_config$render_dir,
       envir = render_env
     )
   })
@@ -543,15 +602,20 @@ main <- function() {
   })
 }
 
-tryCatch(
-  main(),
-  error = function(e) {
-    stage_name <- getOption("cycling_analytics_stage", "Unknown")
-    dashboard_log(sprintf(
-      "Dashboard refresh failed in stage=%s exit_code=1 error=%s",
-      stage_name,
-      conditionMessage(e)
-    ))
-    quit(status = 1)
-  }
-)
+if (sys.nframe() == 0L) {
+  tryCatch(
+    main(),
+    error = function(e) {
+      stage_name <- getOption(
+        "cycling_analytics_failed_stage",
+        getOption("cycling_analytics_stage", "Unknown")
+      )
+      dashboard_log(sprintf(
+        "Dashboard refresh failed in stage=%s exit_code=1 error=%s",
+        stage_name,
+        conditionMessage(e)
+      ))
+      quit(status = 1)
+    }
+  )
+}

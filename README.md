@@ -45,6 +45,10 @@ Set `CYCLING_ANALYTICS_OUTPUT_DIR` to render to another directory.
 The complete production runtime and output contract is documented in
 [`docs/runtime-contract.md`](docs/runtime-contract.md).
 
+The container may run under any operator-supplied UID/GID. Its entrypoint keeps
+source and renv packages read-only, uses a per-UID temporary runtime tree for R
+Markdown/cache files, and writes the persistent dashboard only to `/app/output`.
+
 For the retained local publish-and-notify convenience:
 
 ```sh

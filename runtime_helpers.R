@@ -15,14 +15,6 @@ log_message <- function(msg) {
 
   log_file <- Sys.getenv("DASHBOARD_LOG", "")
 
-  if (!nzchar(log_file)) {
-    project_root <- Sys.getenv("RENV_PROJECT", "")
-
-    if (nzchar(project_root)) {
-      log_file <- file.path(project_root, "dashboard_refresh.log")
-    }
-  }
-
   if (nzchar(log_file)) {
     tryCatch(
       suppressWarnings(

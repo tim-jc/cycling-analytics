@@ -14,6 +14,7 @@ source("dashboard_functions.R")
 source("latest_ride_functions.R")
 source("reports/ride-summary/R/ride_report_model.R")
 source("reports/ride-summary/R/ride_report_components.R")
+source("render_dashboard.R")
 
 tests_run <- 0L
 
@@ -60,6 +61,59 @@ expect_error <- function(code, pattern) {
     )
   }
 }
+
+run_test("container logging defaults to stdout without a log file", {
+  withr::local_envvar(c(
+    DASHBOARD_LOG = NA,
+    RENV_PROJECT = "/opt/cycling-analytics"
+  ))
+
+  expect_true(is.na(dashboard_log_path()))
+})
+
+run_test("writable runtime directories are accepted and probed cleanly", {
+  parent_dir <- withr::local_tempdir()
+  runtime_dir <- file.path(parent_dir, "render")
+
+  prepared <- prepare_writable_directory(runtime_dir, "Test runtime")
+
+  expect_equal(prepared, normalizePath(runtime_dir))
+  expect_equal(
+    list.files(runtime_dir, all.files = TRUE, no.. = TRUE),
+    character()
+  )
+})
+
+run_test("nested dashboard stages restore the outer failure context", {
+  old_stage <- getOption("cycling_analytics_stage", NULL)
+  on.exit(options(cycling_analytics_stage = old_stage), add = TRUE)
+  options(cycling_analytics_stage = "Outer stage")
+
+  run_dashboard_stage("Inner stage", {
+    expect_equal(getOption("cycling_analytics_stage"), "Inner stage")
+  })
+
+  expect_equal(getOption("cycling_analytics_stage"), "Outer stage")
+})
+
+run_test("failed dashboard stage remains available to the final handler", {
+  old_failed_stage <- getOption("cycling_analytics_failed_stage", NULL)
+  on.exit(
+    options(cycling_analytics_failed_stage = old_failed_stage),
+    add = TRUE
+  )
+  options(cycling_analytics_failed_stage = NULL)
+
+  tryCatch(
+    run_dashboard_stage("Render dashboard", stop("file connection failed")),
+    error = function(e) NULL
+  )
+
+  expect_equal(
+    getOption("cycling_analytics_failed_stage"),
+    "Render dashboard"
+  )
+})
 
 run_test("missing CARTO key gives an actionable, non-secret error", {
   withr::local_envvar(CARTO_BASEMAP_API_KEY = NA)

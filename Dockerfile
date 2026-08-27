@@ -55,7 +55,12 @@ ENV RENV_CONFIG_SANDBOX_ENABLED=FALSE \
 
 COPY . .
 
-RUN mkdir -p output
+RUN mkdir -p /app/output \
+    && chmod 1777 /app/output \
+    && chmod -R a+rX,go-w /opt/cycling-analytics \
+    && install -m 0755 scripts/docker-entrypoint.sh /usr/local/bin/cycling-analytics-entrypoint
+
+ENTRYPOINT ["/usr/local/bin/cycling-analytics-entrypoint"]
 
 # TODO: Replace with a proper smoke test once one exists.
 # RUN Rscript tests/smoke_check.R

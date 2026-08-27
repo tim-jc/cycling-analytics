@@ -49,6 +49,7 @@ R/renv can load it and override injected process values.
 |---|---|---|
 | `CYCLING_ANALYTICS_TIMEZONE` | `Europe/London` | User/calendar timezone used by R |
 | `CYCLING_ANALYTICS_OUTPUT_DIR` | `docs` | Absolute path or path relative to the repository root |
+| `CYCLING_ANALYTICS_RENDER_DIR` | R session temporary directory | R Markdown intermediate files |
 | `ANNUAL_DISTANCE_GOAL_MI` | Previous-year total | Positive annual mileage goal |
 | `RSTUDIO_PANDOC` | Auto-discovered | Explicit local Pandoc location when needed |
 
@@ -81,6 +82,32 @@ future deployment may either:
 
 That choice is deferred to container/infrastructure design.
 
+## Container filesystem contract
+
+The container supports an arbitrary externally supplied numeric UID/GID. Its
+source at `/opt/cycling-analytics` and renv library at
+`/opt/cycling-analytics-library` remain read-only at runtime.
+
+The container entrypoint creates a per-UID ephemeral runtime tree at
+`/tmp/cycling-analytics-<uid>` and configures:
+
+| Location | Purpose |
+|---|---|
+| `home/` | Writable `HOME` and `R_USER` |
+| `cache/` | `XDG_CACHE_HOME`, including the R/sass cache |
+| `tmp/` | `TMPDIR` and R temporary files |
+| `render/` | R Markdown and Pandoc intermediate files |
+
+`CYCLING_ANALYTICS_RUNTIME_DIR` may replace the runtime-tree root when needed.
+The entrypoint creates and verifies these directories after the external
+runtime identity has been applied; no production UID or GID is baked into the
+image.
+
+Production mounts its writable persistent output at `/app/output`. The image
+also supplies a writable `/app/output` mount point so an ordinary unmounted
+`docker run` works. No rendering step requires write access to the application
+source tree.
+
 ## Logging
 
 Application logs are written to stderr/stdout and retain these stages:
@@ -93,9 +120,11 @@ Application logs are written to stderr/stdout and retain these stages:
 - Complete
 - Cleanup
 
-If `DASHBOARD_LOG` is configured outside redirected execution, application logs
-are also appended to that file. Container infrastructure may collect standard
-output without changing application logging.
+If `DASHBOARD_LOG` is explicitly configured outside redirected execution,
+application logs are also appended to that file. With no explicit file, logs
+go only to stderr/stdout; the application never defaults to writing a log in
+its source tree. Container infrastructure may collect standard output without
+changing application logging.
 
 Errors include the active stage and runtime context and propagate as a non-zero
 process exit status.
