@@ -163,8 +163,13 @@ This is not the authoritative production execution contract.
 ## Scheduling and locking
 
 Scheduling, concurrency control and production locking are infrastructure
-responsibilities.
+responsibilities. On the Pi, infrastructure passes
+`CYCLING_ANALYTICS_NEXT_REFRESH_TEXT` only as notification display context; the
+application displays the supplied value without deriving or parsing the Pi
+production schedule. In production `render` mode, a missing or empty value is
+reported as `not scheduled`. `local_publish` retains its existing
+`DASHBOARD_REFRESH_SCHEDULE` calculation for local-development notifications.
 
-The existing macOS cron wrapper remains supported until migration. Its
-directory lock now records an owner PID and recovers a stale lock. That mechanism
-does not prescribe the future Linux/container locking design.
+The retained `local_publish` path may still calculate a local next run from
+`DASHBOARD_REFRESH_SCHEDULE`; it is not authoritative for Pi production
+scheduling.

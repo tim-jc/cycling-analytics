@@ -12,6 +12,7 @@ Sys.setenv(TZ = "Europe/London")
 source("db/db.R")
 source("dashboard_functions.R")
 source("latest_ride_functions.R")
+source("runtime_helpers.R")
 source("reports/ride-summary/R/ride_report_model.R")
 source("reports/ride-summary/R/ride_report_components.R")
 source("render_dashboard.R")
@@ -193,6 +194,61 @@ run_test("activity without streams remains in the activity summary", {
     sum(summary$distance_mi[year(summary$start_date_local) == 2026]),
     30
   )
+})
+
+notification_render_env <- new.env(parent = emptyenv())
+notification_render_env$ytd_stats <- build_ytd_stats(activities, reference_date)
+notification_render_env$activities <- activities
+
+notification_next_line <- function(run_mode, supplied_text, local_schedule) {
+  withr::local_envvar(c(
+    CYCLING_ANALYTICS_RUN_MODE = run_mode,
+    CYCLING_ANALYTICS_NEXT_REFRESH_TEXT = supplied_text,
+    DASHBOARD_REFRESH_SCHEDULE = local_schedule
+  ))
+
+  context <- build_notification_context(
+    notification_render_env,
+    as.POSIXct("2026-07-26 12:00:00", tz = "Europe/London")
+  )
+  grep("^Next refresh:", strsplit(context, "\n")[[1]], value = TRUE)[[1]]
+}
+
+run_test("render notification displays infrastructure 20:30 value", {
+  expect_equal(notification_next_line("render", "20:30", "1 1 * * *"),
+    "Next refresh: 20:30")
+})
+
+run_test("render notification displays infrastructure 02:30 value", {
+  expect_equal(notification_next_line("render", "02:30", "1 1 * * *"),
+    "Next refresh: 02:30")
+})
+
+run_test("render notification displays infrastructure unscheduled value", {
+  expect_equal(notification_next_line("render", "not scheduled", "1 1 * * *"),
+    "Next refresh: not scheduled")
+})
+
+run_test("render notification does not derive a missing production value", {
+  expect_equal(notification_next_line("render", NA, "1 1 * * *"),
+    "Next refresh: not scheduled")
+})
+
+run_test("render notification treats an empty production value as unscheduled", {
+  expect_equal(notification_next_line("render", "", "1 1 * * *"),
+    "Next refresh: not scheduled")
+})
+
+run_test("local publish retains local schedule calculation", {
+  withr::local_envvar(c(
+    CYCLING_ANALYTICS_RUN_MODE = "local_publish",
+    CYCLING_ANALYTICS_NEXT_REFRESH_TEXT = "infrastructure-only",
+    DASHBOARD_REFRESH_SCHEDULE = "30 02,20 * * *"
+  ))
+  expected <- paste("Next refresh:", format(get_next_dashboard_run(), "%H:%M"))
+  context <- build_notification_context(notification_render_env, Sys.time())
+  actual <- grep("^Next refresh:", strsplit(context, "\n")[[1]], value = TRUE)[[1]]
+  expect_equal(actual, expected)
 })
 
 run_test("latest ride uses start time when rides share a date", {

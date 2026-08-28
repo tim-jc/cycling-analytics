@@ -335,6 +335,25 @@ get_publish_summary <- function(publish_result) {
   "Publish: no dashboard changes"
 }
 
+get_notification_next_refresh_text <- function() {
+  run_mode <- Sys.getenv("CYCLING_ANALYTICS_RUN_MODE", "render")
+
+  if (identical(run_mode, "render")) {
+    supplied_text <- Sys.getenv("CYCLING_ANALYTICS_NEXT_REFRESH_TEXT", "")
+    if (nzchar(supplied_text)) {
+      return(supplied_text)
+    }
+    return("not scheduled")
+  }
+
+  next_run <- get_next_dashboard_run()
+  if (is.na(next_run)) {
+    return("not scheduled")
+  }
+
+  format(next_run, "%H:%M")
+}
+
 build_notification_context <- function(render_env, rendered_at) {
   ytd_stats <- render_env$ytd_stats
 
@@ -342,12 +361,7 @@ build_notification_context <- function(render_env, rendered_at) {
   ytd_tons <- get_ytd_values("tons", ytd_stats)[["ytd"]]
   ytd_hours <- get_ytd_values("time_hr", ytd_stats)[["ytd"]]
 
-  next_run <- get_next_dashboard_run()
-  next_run_text <- if (is.na(next_run)) {
-    "not scheduled"
-  } else {
-    format(next_run, "%H:%M")
-  }
+  next_run_text <- get_notification_next_refresh_text()
 
   paste(
     glue::glue("Rendered: {format(rendered_at, '%d %b %H:%M')}"),
