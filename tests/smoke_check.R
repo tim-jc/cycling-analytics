@@ -107,6 +107,17 @@ assert_true(
   "Pandoc is not installed or is not discoverable by rmarkdown"
 )
 
+dashboard_front_matter <- rmarkdown::yaml_front_matter(
+  file.path(project_root, "dashboards", "index.Rmd")
+)
+dashboard_format <- dashboard_front_matter$output[[
+  "flexdashboard::flex_dashboard"
+]]
+assert_true(
+  identical(dashboard_format$self_contained, FALSE),
+  "dashboard output is not explicitly configured as non-self-contained"
+)
+
 production_r_files <- c(
   "render_dashboard.R",
   "db/db.R",

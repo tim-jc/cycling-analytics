@@ -48,7 +48,7 @@ R/renv can load it and override injected process values.
 | Variable | Default | Purpose |
 |---|---|---|
 | `CYCLING_ANALYTICS_TIMEZONE` | `Europe/London` | User/calendar timezone used by R |
-| `CYCLING_ANALYTICS_OUTPUT_DIR` | `docs` | Absolute path or path relative to the repository root |
+| `CYCLING_ANALYTICS_OUTPUT_DIR` | `output` | Root of the complete static-site artefact; absolute or relative to the repository root |
 | `CYCLING_ANALYTICS_RENDER_DIR` | R session temporary directory | R Markdown intermediate files |
 | `ANNUAL_DISTANCE_GOAL_MI` | Previous-year total | Positive annual mileage goal |
 | `RSTUDIO_PANDOC` | Auto-discovered | Explicit local Pandoc location when needed |
@@ -64,23 +64,36 @@ locale will be chosen during container design.
 
 ## Output contract
 
-The application creates:
+The application artefact is a complete, publication-neutral static-site
+directory:
 
 ```text
-${CYCLING_ANALYTICS_OUTPUT_DIR:-docs}/index.html
+${CYCLING_ANALYTICS_OUTPUT_DIR:-output}/
+├── index.html
+└── index_files/
+    └── ...
 ```
 
-The output directory is created when necessary. Rendering does not require the
-directory to be inside a Git repository.
+`index.html` is deliberately non-self-contained. Every local CSS, JavaScript,
+font and htmlwidget dependency it references under `index_files/` must exist
+beneath the same output root. The output directory is generated content and is
+ignored by Git; genuine project documentation remains under `docs/`.
 
-Publication is deliberately outside the production application contract. The
-future deployment may either:
+Rendering uses three distinct locations:
 
-1. render into a writable Git checkout and publish through GitHub Pages; or
-2. render into a mounted/persistent directory and let infrastructure serve or
-   publish it.
+1. dashboard source remains read-only under `dashboards/`;
+2. R Markdown/Pandoc intermediate files use `CYCLING_ANALYTICS_RENDER_DIR`;
+3. the complete new site is rendered into a hidden staging directory on the
+   output filesystem.
 
-That choice is deferred to container/infrastructure design.
+The staged site is validated before finalisation. Finalisation backs up the
+current site, promotes all dependencies, promotes `index.html` last, validates
+the durable result, and rolls back if any promotion step fails. A failed render
+or validation therefore leaves the previous successful site intact.
+
+Publication is deliberately outside the application contract. A separate
+publication mechanism may consume the complete output directory, but no
+hosting provider is selected or implemented here.
 
 ## Container filesystem contract
 
@@ -122,6 +135,8 @@ Application logs are written to stderr/stdout and retain these stages:
 - Connect database
 - Load data
 - Render dashboard
+- Validate dashboard artefact
+- Finalise dashboard artefact
 - Complete
 - Cleanup
 
@@ -149,7 +164,7 @@ raster maps require `CARTO_BASEMAP_API_KEY`; supply it to the container at
 runtime through the production environment or future Compose configuration.
 It must not be embedded in the Dockerfile or image.
 
-## Local publication convenience
+## Historical local publication convenience
 
 The existing Git publication and ntfy path remains available explicitly for
 local development:
@@ -158,7 +173,11 @@ local development:
 CYCLING_ANALYTICS_RUN_MODE=local_publish Rscript render_dashboard.R
 ```
 
-This is not the authoritative production execution contract.
+This is not the authoritative production execution contract. The retained
+Git-based local publication helper still reflects the historical GitHub Pages
+workflow; the publication-neutral production artefact is always the complete
+configured output directory and must not be reduced to a single copied HTML
+file.
 
 ## Scheduling and locking
 

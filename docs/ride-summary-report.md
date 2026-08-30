@@ -15,7 +15,7 @@ Rscript scripts/render_ride_summary.R \
   --coach-observations "Pacing improved after interval one|Final effort remained strong"
 ```
 
-Output defaults to `output/pdf/ride-summary-<activity-id>.pdf`. Use
+Output defaults to `report-output/pdf/ride-summary-<activity-id>.pdf`. Use
 `--output-dir <path>` to choose another destination. Only `--activity-id` is
 required; FTP-dependent metrics degrade gracefully.
 

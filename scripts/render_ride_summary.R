@@ -7,7 +7,7 @@ parse_report_args <- function(args) {
     session_objective = "",
     rider_notes = "",
     coach_observations = "",
-    output_dir = "output/pdf"
+    output_dir = "report-output/pdf"
   )
   index <- 1L
   while (index <= length(args)) {

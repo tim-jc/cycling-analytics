@@ -7,7 +7,8 @@
 .DS_Store
 
 *.log
-output/pdf/
+output/
+report-output/
 
 renv/library/
 renv/staging/

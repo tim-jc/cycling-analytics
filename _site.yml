@@ -1,3 +1,3 @@
 name: "ride_stats"
-output_dir: docs
+output_dir: output
 exclude: ["LICENSE", "*.pdf"]

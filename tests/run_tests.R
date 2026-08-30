@@ -63,6 +63,132 @@ expect_error <- function(code, pattern) {
   }
 }
 
+write_static_site_fixture <- function(path, label = "fixture") {
+  dependency_dir <- file.path(path, "index_files", "fixture")
+  dir.create(dependency_dir, recursive = TRUE)
+  writeLines(
+    paste0("console.log('", label, "');"),
+    file.path(dependency_dir, "app.js")
+  )
+  writeLines(
+    c(
+      "<!doctype html>",
+      paste0("<html><body>", label),
+      '<script src="index_files/fixture/app.js"></script>',
+      "</body></html>"
+    ),
+    file.path(path, "index.html")
+  )
+}
+
+run_test("dashboard output defaults to the ignored output directory", {
+  project_root <- withr::local_tempdir()
+  output_dir <- withr::with_envvar(
+    c(CYCLING_ANALYTICS_OUTPUT_DIR = NA),
+    get_dashboard_output_dir(project_root)
+  )
+
+  expect_equal(output_dir, normalizePath(file.path(project_root, "output")))
+})
+
+run_test("dashboard output directory override is preserved", {
+  project_root <- withr::local_tempdir()
+  configured_output <- file.path(project_root, "custom-site")
+  output_dir <- withr::with_envvar(
+    c(CYCLING_ANALYTICS_OUTPUT_DIR = configured_output),
+    get_dashboard_output_dir(project_root)
+  )
+
+  expect_equal(
+    output_dir,
+    normalizePath(configured_output)
+  )
+})
+
+run_test("non-self-contained render preserves its dependency tree", {
+  fixture_root <- withr::local_tempdir()
+  input_file <- file.path(fixture_root, "fixture.Rmd")
+  staging_dir <- file.path(fixture_root, "staging")
+  render_dir <- file.path(fixture_root, "render")
+  dir.create(staging_dir)
+  dir.create(render_dir)
+  writeLines(c(
+    "---",
+    'title: "Static site fixture"',
+    "output:",
+    "  html_document:",
+    "    self_contained: false",
+    "---",
+    "",
+    "```{r, echo=FALSE}",
+    "plotly::plot_ly(x = 1:2, y = 1:2)",
+    "```"
+  ), input_file)
+
+  render_dashboard_site(
+    input_file,
+    staging_dir,
+    render_dir,
+    new.env(parent = globalenv()),
+    quiet = TRUE
+  )
+  validation <- validate_static_site(staging_dir)
+
+  expect_true(file.exists(file.path(staging_dir, "index.html")))
+  expect_true(dir.exists(file.path(staging_dir, "index_files")))
+  expect_true(length(validation$dependency_references) > 0L)
+})
+
+run_test("incomplete static-site dependencies are rejected", {
+  site_dir <- withr::local_tempdir()
+  writeLines(
+    '<script src="index_files/missing/app.js"></script>',
+    file.path(site_dir, "index.html")
+  )
+
+  expect_error(
+    validate_static_site(site_dir),
+    "index_files/ is absent"
+  )
+})
+
+run_test("failed site promotion restores the complete previous site", {
+  output_dir <- withr::local_tempdir()
+  staging_dir <- create_static_site_staging_dir(output_dir)
+  write_static_site_fixture(output_dir, "old-site")
+  write_static_site_fixture(staging_dir, "new-site")
+
+  expect_error(
+    promote_static_site(
+      staging_dir,
+      output_dir,
+      step_hook = function(step) {
+        if (identical(step, "promoted:index_files")) {
+          stop("injected finalisation failure")
+        }
+      }
+    ),
+    "injected finalisation failure"
+  )
+
+  validate_static_site(output_dir)
+  expect_true(grepl(
+    "old-site",
+    paste(readLines(file.path(output_dir, "index.html")), collapse = ""),
+    fixed = TRUE
+  ))
+  expect_true(!dir.exists(staging_dir))
+})
+
+run_test("generated dashboard site is ignored by Git", {
+  status <- suppressWarnings(system2(
+    "git",
+    c("check-ignore", "--quiet", "output/index.html")
+  ))
+
+  expect_equal(status, 0L)
+})
+
 run_test("container logging defaults to stdout without a log file", {
   withr::local_envvar(c(
     DASHBOARD_LOG = NA,
