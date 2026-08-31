@@ -502,7 +502,7 @@ get_publish_summary <- function(publish_result) {
   "Publish: no dashboard changes"
 }
 
-get_notification_next_refresh_text <- function() {
+get_dashboard_next_refresh_text <- function() {
   run_mode <- Sys.getenv("CYCLING_ANALYTICS_RUN_MODE", "render")
 
   if (identical(run_mode, "render")) {
@@ -521,6 +521,13 @@ get_notification_next_refresh_text <- function() {
   format(next_run, "%H:%M")
 }
 
+build_dashboard_refresh_summary <- function(rendered_at = Sys.time()) {
+  glue::glue(
+    "Last refresh: {format(rendered_at, '%H:%M')}<br>",
+    "Next refresh: {get_dashboard_next_refresh_text()}"
+  )
+}
+
 build_notification_context <- function(render_env, rendered_at) {
   ytd_stats <- render_env$ytd_stats
 
@@ -528,7 +535,7 @@ build_notification_context <- function(render_env, rendered_at) {
   ytd_tons <- get_ytd_values("tons", ytd_stats)[["ytd"]]
   ytd_hours <- get_ytd_values("time_hr", ytd_stats)[["ytd"]]
 
-  next_run_text <- get_notification_next_refresh_text()
+  next_run_text <- get_dashboard_next_refresh_text()
 
   paste(
     glue::glue("Rendered: {format(rendered_at, '%d %b %H:%M')}"),

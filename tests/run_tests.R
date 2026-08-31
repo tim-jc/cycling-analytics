@@ -377,6 +377,81 @@ run_test("local publish retains local schedule calculation", {
   expect_equal(actual, expected)
 })
 
+dashboard_refresh_summary <- function(
+  run_mode,
+  supplied_next_refresh = NA_character_,
+  local_schedule = "1 1 * * *"
+) {
+  withr::local_envvar(c(
+    CYCLING_ANALYTICS_RUN_MODE = run_mode,
+    CYCLING_ANALYTICS_NEXT_REFRESH_TEXT = supplied_next_refresh,
+    DASHBOARD_REFRESH_SCHEDULE = local_schedule
+  ))
+
+  as.character(build_dashboard_refresh_summary(
+    as.POSIXct("2026-08-31 12:34:00", tz = "Europe/London")
+  ))
+}
+
+run_test("dashboard summary displays infrastructure 20:30 value", {
+  expect_equal(
+    dashboard_refresh_summary("render", "20:30"),
+    "Last refresh: 12:34<br>Next refresh: 20:30"
+  )
+})
+
+run_test("dashboard summary displays infrastructure 02:30 value", {
+  expect_equal(
+    dashboard_refresh_summary("render", "02:30"),
+    "Last refresh: 12:34<br>Next refresh: 02:30"
+  )
+})
+
+run_test("dashboard summary displays infrastructure unscheduled value", {
+  expect_equal(
+    dashboard_refresh_summary("render", "not scheduled"),
+    "Last refresh: 12:34<br>Next refresh: not scheduled"
+  )
+})
+
+run_test("dashboard summary defaults a missing production value", {
+  expect_equal(
+    dashboard_refresh_summary("render", NA_character_),
+    "Last refresh: 12:34<br>Next refresh: not scheduled"
+  )
+})
+
+run_test("dashboard summary defaults an empty production value", {
+  expect_equal(
+    dashboard_refresh_summary("render", ""),
+    "Last refresh: 12:34<br>Next refresh: not scheduled"
+  )
+})
+
+run_test("dashboard summary ignores conflicting local production schedule", {
+  expect_equal(
+    dashboard_refresh_summary("render", "20:30", "59 23 * * *"),
+    "Last refresh: 12:34<br>Next refresh: 20:30"
+  )
+})
+
+run_test("dashboard summary retains local publish schedule calculation", {
+  withr::local_envvar(c(
+    CYCLING_ANALYTICS_RUN_MODE = "local_publish",
+    CYCLING_ANALYTICS_NEXT_REFRESH_TEXT = "infrastructure-only",
+    DASHBOARD_REFRESH_SCHEDULE = "30 02,20 * * *"
+  ))
+  expected <- paste0(
+    "Last refresh: 12:34<br>Next refresh: ",
+    format(get_next_dashboard_run(), "%H:%M")
+  )
+  actual <- as.character(build_dashboard_refresh_summary(
+    as.POSIXct("2026-08-31 12:34:00", tz = "Europe/London")
+  ))
+
+  expect_equal(actual, expected)
+})
+
 run_test("latest ride uses start time when rides share a date", {
   same_day <- tibble(
     activity_id = c(19501207283, 19502918454),

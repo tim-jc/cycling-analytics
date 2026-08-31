@@ -250,8 +250,7 @@ Summary
 Row
 -----------------------------------------------------------------------
 
-### `r str_glue('Last refresh: {format(Sys.time(), "%H:%M")}<br>','Next refresh: {format(get_next_dashboard_run(), "%H:%M")}'
-)`
+### `r build_dashboard_refresh_summary()`
 
 ```{r}
 valueBox(format(Sys.time(), "%d %b %y"), color = "#EDF0F1")
