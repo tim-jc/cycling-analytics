@@ -326,11 +326,9 @@ notification_render_env <- new.env(parent = emptyenv())
 notification_render_env$ytd_stats <- build_ytd_stats(activities, reference_date)
 notification_render_env$activities <- activities
 
-notification_next_line <- function(run_mode, supplied_text, local_schedule) {
+notification_next_line <- function(supplied_text) {
   withr::local_envvar(c(
-    CYCLING_ANALYTICS_RUN_MODE = run_mode,
-    CYCLING_ANALYTICS_NEXT_REFRESH_TEXT = supplied_text,
-    DASHBOARD_REFRESH_SCHEDULE = local_schedule
+    CYCLING_ANALYTICS_NEXT_REFRESH_TEXT = supplied_text
   ))
 
   context <- build_notification_context(
@@ -341,51 +339,42 @@ notification_next_line <- function(run_mode, supplied_text, local_schedule) {
 }
 
 run_test("render notification displays infrastructure 20:30 value", {
-  expect_equal(notification_next_line("render", "20:30", "1 1 * * *"),
+  expect_equal(notification_next_line("20:30"),
     "Next refresh: 20:30")
 })
 
 run_test("render notification displays infrastructure 02:30 value", {
-  expect_equal(notification_next_line("render", "02:30", "1 1 * * *"),
+  expect_equal(notification_next_line("02:30"),
     "Next refresh: 02:30")
 })
 
 run_test("render notification displays infrastructure unscheduled value", {
-  expect_equal(notification_next_line("render", "not scheduled", "1 1 * * *"),
+  expect_equal(notification_next_line("not scheduled"),
     "Next refresh: not scheduled")
 })
 
 run_test("render notification does not derive a missing production value", {
-  expect_equal(notification_next_line("render", NA, "1 1 * * *"),
+  expect_equal(notification_next_line(NA),
     "Next refresh: not scheduled")
 })
 
 run_test("render notification treats an empty production value as unscheduled", {
-  expect_equal(notification_next_line("render", "", "1 1 * * *"),
+  expect_equal(notification_next_line(""),
     "Next refresh: not scheduled")
 })
 
-run_test("local publish retains local schedule calculation", {
-  withr::local_envvar(c(
-    CYCLING_ANALYTICS_RUN_MODE = "local_publish",
-    CYCLING_ANALYTICS_NEXT_REFRESH_TEXT = "infrastructure-only",
-    DASHBOARD_REFRESH_SCHEDULE = "30 02,20 * * *"
-  ))
-  expected <- paste("Next refresh:", format(get_next_dashboard_run(), "%H:%M"))
-  context <- build_notification_context(notification_render_env, Sys.time())
-  actual <- grep("^Next refresh:", strsplit(context, "\n")[[1]], value = TRUE)[[1]]
-  expect_equal(actual, expected)
+run_test("obsolete local publish mode is rejected before rendering", {
+  project_root <- withr::local_tempdir()
+  withr::local_envvar(c(CYCLING_ANALYTICS_RUN_MODE = "local_publish"))
+  expect_error(
+    get_application_config(project_root),
+    "must be one of: render"
+  )
 })
 
-dashboard_refresh_summary <- function(
-  run_mode,
-  supplied_next_refresh = NA_character_,
-  local_schedule = "1 1 * * *"
-) {
+dashboard_refresh_summary <- function(supplied_next_refresh = NA_character_) {
   withr::local_envvar(c(
-    CYCLING_ANALYTICS_RUN_MODE = run_mode,
-    CYCLING_ANALYTICS_NEXT_REFRESH_TEXT = supplied_next_refresh,
-    DASHBOARD_REFRESH_SCHEDULE = local_schedule
+    CYCLING_ANALYTICS_NEXT_REFRESH_TEXT = supplied_next_refresh
   ))
 
   as.character(build_dashboard_refresh_summary(
@@ -395,61 +384,42 @@ dashboard_refresh_summary <- function(
 
 run_test("dashboard summary displays infrastructure 20:30 value", {
   expect_equal(
-    dashboard_refresh_summary("render", "20:30"),
+    dashboard_refresh_summary("20:30"),
     "Last refresh: 12:34<br>Next refresh: 20:30"
   )
 })
 
 run_test("dashboard summary displays infrastructure 02:30 value", {
   expect_equal(
-    dashboard_refresh_summary("render", "02:30"),
+    dashboard_refresh_summary("02:30"),
     "Last refresh: 12:34<br>Next refresh: 02:30"
   )
 })
 
 run_test("dashboard summary displays infrastructure unscheduled value", {
   expect_equal(
-    dashboard_refresh_summary("render", "not scheduled"),
+    dashboard_refresh_summary("not scheduled"),
     "Last refresh: 12:34<br>Next refresh: not scheduled"
   )
 })
 
 run_test("dashboard summary defaults a missing production value", {
   expect_equal(
-    dashboard_refresh_summary("render", NA_character_),
+    dashboard_refresh_summary(NA_character_),
     "Last refresh: 12:34<br>Next refresh: not scheduled"
   )
 })
 
 run_test("dashboard summary defaults an empty production value", {
   expect_equal(
-    dashboard_refresh_summary("render", ""),
+    dashboard_refresh_summary(""),
     "Last refresh: 12:34<br>Next refresh: not scheduled"
   )
 })
 
-run_test("dashboard summary ignores conflicting local production schedule", {
-  expect_equal(
-    dashboard_refresh_summary("render", "20:30", "59 23 * * *"),
-    "Last refresh: 12:34<br>Next refresh: 20:30"
-  )
-})
-
-run_test("dashboard summary retains local publish schedule calculation", {
-  withr::local_envvar(c(
-    CYCLING_ANALYTICS_RUN_MODE = "local_publish",
-    CYCLING_ANALYTICS_NEXT_REFRESH_TEXT = "infrastructure-only",
-    DASHBOARD_REFRESH_SCHEDULE = "30 02,20 * * *"
-  ))
-  expected <- paste0(
-    "Last refresh: 12:34<br>Next refresh: ",
-    format(get_next_dashboard_run(), "%H:%M")
-  )
-  actual <- as.character(build_dashboard_refresh_summary(
-    as.POSIXct("2026-08-31 12:34:00", tz = "Europe/London")
-  ))
-
-  expect_equal(actual, expected)
+run_test("render runtime exposes no Git publication operations", {
+  expect_true(!exists("publish_to_git", mode = "function"))
+  expect_true(!exists("send_ntfy_message", mode = "function"))
 })
 
 run_test("latest ride uses start time when rides share a date", {

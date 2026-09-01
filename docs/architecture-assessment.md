@@ -2,6 +2,15 @@
 
 Date: 26 July 2026
 
+> **Historical assessment.** This document records the repository and operating
+> model as reviewed on 26 July 2026. Its Mac cron, generated `docs/index.html`,
+> Git publication and GitHub Pages references describe the former architecture
+> and are intentionally retained as historical evidence. They are not current
+> operating instructions. The accepted production contract is documented in
+> [`runtime-contract.md`](runtime-contract.md): analytics now produces a
+> validated complete site under `output/`, while infrastructure on
+> `cycling-prod` owns scheduling and Cloudflare Pages publication.
+
 ## 1. Executive summary
 
 `cycling-analytics` is fundamentally sound and already respects the most

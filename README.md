@@ -50,11 +50,13 @@ The container may run under any operator-supplied UID/GID. Its entrypoint keeps
 source and renv packages read-only, uses a per-UID temporary runtime tree for R
 Markdown/cache files, and writes the persistent dashboard only to `/app/output`.
 
-For the retained local publish-and-notify convenience:
-
-```sh
-CYCLING_ANALYTICS_RUN_MODE=local_publish Rscript render_dashboard.R
-```
+Production execution, scheduling, publication, notification and recovery are
+owned by `cycling-infrastructure` on `cycling-prod`. Infrastructure currently
+publishes the validated `output/` artefact to Cloudflare Pages. This repository
+contains neither that deployment implementation nor Cloudflare credentials.
+Git stores source and documentation; generated dashboard renders are ignored.
+The Mac is a development environment rather than the scheduled production
+runtime, and `docs/` contains documentation only.
 
 ## Tests
 
@@ -81,21 +83,6 @@ Rscript scripts/render_ride_summary.R --activity-id <activity-id>
 
 An optional FTP input enables estimated training-load and power-zone sections.
 See [`docs/ride-summary-report.md`](docs/ride-summary-report.md).
-
-## Scheduled Refreshes
-
-Set `DASHBOARD_REFRESH_SCHEDULE` to a standard five-field cron expression, then install the managed cron block from an R session:
-
-```r
-source("runtime_helpers.R")
-install_cron_job()
-```
-
-The cron entry runs `scripts/run_dashboard_refresh.sh`, which changes to the project root and feeds `render_dashboard.R` to `Rscript` through stdin. Output is written to `dashboard_refresh.log`. The render script does not require or use a `cron` command-line argument.
-
-The refresh log records the wrapper environment, R library paths, major render stages, git commands, elapsed times, and failure context. Start there when diagnosing unattended refresh failures.
-
-Re-run `install_cron_job()` after changing the repository path, R installation, or cron helper so the managed crontab block is regenerated.
 
 ## Troubleshooting renv
 

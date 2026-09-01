@@ -79,7 +79,6 @@ required_packages <- c(
   "flexdashboard",
   "glue",
   "htmlwidgets",
-  "httr",
   "knitr",
   "leaflet",
   "lubridate",
@@ -88,8 +87,7 @@ required_packages <- c(
   "rmarkdown",
   "tibble",
   "tidygeocoder",
-  "tidyverse",
-  "withr"
+  "tidyverse"
 )
 missing_packages <- required_packages[
   !vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)

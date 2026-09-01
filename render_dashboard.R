@@ -406,7 +406,7 @@ get_application_config <- function(project_root) {
     "CYCLING_ANALYTICS_RUN_MODE",
     unset = "render"
   )
-  allowed_run_modes <- c("render", "local_publish")
+  allowed_run_modes <- "render"
 
   if (!run_mode %in% allowed_run_modes) {
     stop(
@@ -494,31 +494,12 @@ get_latest_ride_summary <- function(activities) {
   )
 }
 
-get_publish_summary <- function(publish_result) {
-  if (isTRUE(publish_result$committed)) {
-    return(glue::glue("Publish: commit {publish_result$commit} pushed"))
-  }
-
-  "Publish: no dashboard changes"
-}
-
 get_dashboard_next_refresh_text <- function() {
-  run_mode <- Sys.getenv("CYCLING_ANALYTICS_RUN_MODE", "render")
-
-  if (identical(run_mode, "render")) {
-    supplied_text <- Sys.getenv("CYCLING_ANALYTICS_NEXT_REFRESH_TEXT", "")
-    if (nzchar(supplied_text)) {
-      return(supplied_text)
-    }
-    return("not scheduled")
+  supplied_text <- Sys.getenv("CYCLING_ANALYTICS_NEXT_REFRESH_TEXT", "")
+  if (nzchar(supplied_text)) {
+    return(supplied_text)
   }
-
-  next_run <- get_next_dashboard_run()
-  if (is.na(next_run)) {
-    return("not scheduled")
-  }
-
-  format(next_run, "%H:%M")
+  "not scheduled"
 }
 
 build_dashboard_refresh_summary <- function(rendered_at = Sys.time()) {
@@ -544,25 +525,6 @@ build_notification_context <- function(render_env, rendered_at) {
     ),
     get_latest_ride_summary(render_env$activities),
     glue::glue("Next refresh: {next_run_text}"),
-    sep = "\n"
-  )
-}
-
-build_success_notification <- function(
-  render_env,
-  publish_result,
-  rendered_at
-) {
-  context_lines <- strsplit(
-    build_notification_context(render_env, rendered_at),
-    "\n",
-    fixed = TRUE
-  )[[1]]
-
-  paste(
-    context_lines[seq_len(3)],
-    get_publish_summary(publish_result),
-    context_lines[4],
     sep = "\n"
   )
 }
@@ -604,9 +566,7 @@ main <- function() {
         "tibble",
         "tidygeocoder",
         "glue",
-        "htmlwidgets",
-        "httr",
-        "withr"
+        "htmlwidgets"
       ),
       project_root
     )
@@ -718,82 +678,24 @@ main <- function() {
     promote_static_site(staging_dir, application_config$output_dir)
   })
 
-  if (identical(application_config$run_mode, "local_publish")) {
-    # Explicit local-development convenience. Production orchestration owns
-    # publication and operational notification.
-    publish_result <- if (
-      identical(
-        Sys.getenv("DASHBOARD_SKIP_PUBLISH", ""),
-        "TRUE"
-      )
-    ) {
-      run_dashboard_stage("Publish to Git", {
-        dashboard_log("Publish skipped by DASHBOARD_SKIP_PUBLISH=TRUE.")
-        list(
-          committed = FALSE,
-          pushed = FALSE,
-          commit = NA_character_,
-          skipped = TRUE
-        )
-      })
-    } else {
-      run_dashboard_stage("Publish to Git", {
-        publish_to_git(git_path = project_root)
-      })
-    }
+  notification_context_file <- Sys.getenv(
+    "DASHBOARD_NOTIFICATION_CONTEXT_FILE",
+    ""
+  )
 
-    if (identical(Sys.getenv("DASHBOARD_SKIP_NOTIFY", ""), "TRUE")) {
-      run_dashboard_stage("Notify", {
-        dashboard_log("Notification skipped by DASHBOARD_SKIP_NOTIFY=TRUE.")
-      })
-    } else {
-      run_dashboard_stage("Notify", {
-        ntfy_msg <- build_success_notification(
-          render_env,
-          publish_result,
-          Sys.time()
-        )
-
-        msg_title <- if (isTRUE(publish_result$committed)) {
-          "Dashboard published"
-        } else {
-          "Dashboard checked"
-        }
-
-        msg_tags <- if (isTRUE(publish_result$committed)) {
-          "bike,white_check_mark"
-        } else {
-          "bike,mag"
-        }
-
-        response <- send_ntfy_message(
-          ntfy_msg,
-          msg_title = msg_title,
-          msg_tags = msg_tags
-        )
-        httr::stop_for_status(response)
-      })
-    }
-  } else {
-    notification_context_file <- Sys.getenv(
-      "DASHBOARD_NOTIFICATION_CONTEXT_FILE",
-      ""
+  if (nzchar(notification_context_file)) {
+    writeLines(
+      build_notification_context(render_env, Sys.time()),
+      notification_context_file
     )
-
-    if (nzchar(notification_context_file)) {
-      writeLines(
-        build_notification_context(render_env, Sys.time()),
-        notification_context_file
-      )
-      dashboard_log(glue::glue(
-        "Notification context written to {notification_context_file}."
-      ))
-    }
-
     dashboard_log(glue::glue(
-      "Rendered dashboard artefact: {file.path(application_config$output_dir, 'index.html')}"
+      "Notification context written to {notification_context_file}."
     ))
   }
+
+  dashboard_log(glue::glue(
+    "Rendered dashboard artefact: {file.path(application_config$output_dir, 'index.html')}"
+  ))
 
   run_dashboard_stage("Complete", {
     log_message("Dashboard refresh complete.")

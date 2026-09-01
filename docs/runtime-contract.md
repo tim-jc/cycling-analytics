@@ -50,6 +50,7 @@ R/renv can load it and override injected process values.
 | `CYCLING_ANALYTICS_TIMEZONE` | `Europe/London` | User/calendar timezone used by R |
 | `CYCLING_ANALYTICS_OUTPUT_DIR` | `output` | Root of the complete static-site artefact; absolute or relative to the repository root |
 | `CYCLING_ANALYTICS_RENDER_DIR` | R session temporary directory | R Markdown intermediate files |
+| `CYCLING_ANALYTICS_NEXT_REFRESH_TEXT` | `not scheduled` | Infrastructure-supplied display text for the next production refresh |
 | `ANNUAL_DISTANCE_GOAL_MI` | Previous-year total | Positive annual mileage goal |
 | `RSTUDIO_PANDOC` | Auto-discovered | Explicit local Pandoc location when needed |
 
@@ -59,8 +60,7 @@ Production should configure MariaDB consistently, but dashboard period
 selection does not depend on the database server's current date.
 
 The application does not require a particular regional locale. Runtime
-orchestration should provide a valid UTF-8 locale for its host. The exact Linux
-locale will be chosen during container design.
+orchestration provides a valid UTF-8 locale for the container.
 
 ## Output contract
 
@@ -91,9 +91,10 @@ current site, promotes all dependencies, promotes `index.html` last, validates
 the durable result, and rolls back if any promotion step fails. A failed render
 or validation therefore leaves the previous successful site intact.
 
-Publication is deliberately outside the application contract. A separate
-publication mechanism may consume the complete output directory, but no
-hosting provider is selected or implemented here.
+Publication is deliberately outside the application contract. Production
+infrastructure currently publishes the complete output directory to Cloudflare
+Pages, but Cloudflare credentials, Wrangler execution, publication failure
+handling and recovery remain outside this repository.
 
 ## Container filesystem contract
 
@@ -161,34 +162,20 @@ a read-only user able to select:
 The current dashboard also uses reverse geocoding while preparing map summary
 content. Rendered maps load CARTO/OpenStreetMap tiles in the browser. CARTO
 raster maps require `CARTO_BASEMAP_API_KEY`; supply it to the container at
-runtime through the production environment or future Compose configuration.
+runtime through the infrastructure-managed production environment.
 It must not be embedded in the Dockerfile or image.
-
-## Historical local publication convenience
-
-The existing Git publication and ntfy path remains available explicitly for
-local development:
-
-```sh
-CYCLING_ANALYTICS_RUN_MODE=local_publish Rscript render_dashboard.R
-```
-
-This is not the authoritative production execution contract. The retained
-Git-based local publication helper still reflects the historical GitHub Pages
-workflow; the publication-neutral production artefact is always the complete
-configured output directory and must not be reduced to a single copied HTML
-file.
 
 ## Scheduling and locking
 
 Scheduling, concurrency control and production locking are infrastructure
-responsibilities. On the Pi, infrastructure passes
-`CYCLING_ANALYTICS_NEXT_REFRESH_TEXT` only as notification display context; the
-application displays the supplied value without deriving or parsing the Pi
-production schedule. In production `render` mode, a missing or empty value is
-reported as `not scheduled`. `local_publish` retains its existing
-`DASHBOARD_REFRESH_SCHEDULE` calculation for local-development notifications.
+responsibilities. On `cycling-prod`, infrastructure passes
+`CYCLING_ANALYTICS_NEXT_REFRESH_TEXT` as presentation context. The application
+uses that value unchanged in both the dashboard Summary and notification
+context without deriving or parsing the production schedule. A missing or
+empty value is reported as `not scheduled`.
 
-The retained `local_publish` path may still calculate a local next run from
-`DASHBOARD_REFRESH_SCHEDULE`; it is not authoritative for Pi production
-scheduling.
+The application supports only the publication-neutral `render` mode. The Mac
+is a development environment and does not own scheduled production execution.
+Git contains source and documentation only; generated dashboard output is not
+version-controlled production state. The `docs/` directory is documentation,
+not a hosting output directory.

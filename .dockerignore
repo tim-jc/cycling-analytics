@@ -17,7 +17,6 @@ output/
 report-output/
 tests/*
 !tests/smoke_check.R
-docs/index.html
 
 # Local renv state
 renv/library/
