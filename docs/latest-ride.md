@@ -6,21 +6,37 @@ calculations outside the presentation markup.
 
 ## Selection rule
 
-The page currently selects the newest `Ride` or `VirtualRide` whose canonical
-activity distance is at least 20 miles. The threshold is inclusive and is held
-in `LATEST_SIGNIFICANT_RIDE_MIN_DISTANCE_MI` in `latest_ride_functions.R`.
+The page currently selects the newest significant cycling activity using two
+presentation-specific rules:
+
+- outdoor `Ride`: canonical distance of at least 20 miles;
+- `VirtualRide` or trainer-flagged `Ride`: canonical moving time of at least
+  20 minutes.
+
+Both thresholds are inclusive and are held in
+`LATEST_SIGNIFICANT_RIDE_MIN_DISTANCE_MI` and
+`LATEST_SIGNIFICANT_INDOOR_MIN_MOVING_SECONDS` in
+`latest_ride_functions.R`. `VirtualRide` is sufficient to classify an activity
+as indoor because the platform's trainer flag is not necessarily set for
+virtual activities.
 
 This is a temporary dashboard heuristic, not a canonical platform
 classification. A future cycling-platform activity-classification product can
 replace it without changing the page layout.
 
 If no activity qualifies, the page shows an explicit empty state and does not
-fall back to a shorter or non-cycling activity.
+fall back to an insignificant or non-cycling activity.
+
+This analytical selector is deliberately distinct from the production success
+notification. The notification is a freshness heartbeat and reports the
+chronologically latest `Ride` or `VirtualRide` without either significance
+threshold. Virtual/trainer activities receive a `(virtual)` qualifier there so
+their distance is not presented as an outdoor ride.
 
 ## Data flow
 
 1. Query `cycling_platform_silver.activities` at activity grain and select one
-   qualifying ride.
+   ride using the page-specific significance policy.
 2. Query `cycling_platform_silver.activity_streams` only for that activity.
 3. Query ride-only power efforts from
    `cycling_platform_gold.activity_best_efforts` only for that activity.
@@ -62,6 +78,7 @@ IF, TSS, and any PDF-report behaviour.
 
 ## Tests
 
-Run `Rscript tests/run_tests.R`. The suite covers the selection threshold,
-cycling-only eligibility, newest qualifying selection, empty-state wording,
-and component-level handling of missing streams.
+Run `Rscript tests/run_tests.R`. The suite covers both outdoor and indoor
+selection thresholds, cycling-only eligibility, newest qualifying selection,
+notification independence, empty-state wording, and component-level handling
+of missing streams.

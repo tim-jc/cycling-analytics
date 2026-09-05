@@ -355,6 +355,27 @@ select_latest_ride <- function(activities) {
     slice_head(n = 1)
 }
 
+# Operational freshness selector: newest cycling activity, with no analytical
+# significance threshold. Keep separate from the Latest Ride page policy.
+select_latest_cycling_activity <- function(activities) {
+  required <- c("activity_id", "sport_type", "start_datetime_local")
+  if (!all(required %in% names(activities))) {
+    stop(
+      "Latest cycling activity selection requires: ",
+      paste(required, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  activities |>
+    filter(
+      .data$sport_type %in% c("Ride", "VirtualRide"),
+      !is.na(.data$start_datetime_local)
+    ) |>
+    arrange(desc(.data$start_datetime_local), desc(.data$activity_id)) |>
+    slice_head(n = 1)
+}
+
 get_annual_distance_goal_mi <- function(ytd_stats = NULL) {
   goal_env <- Sys.getenv("ANNUAL_DISTANCE_GOAL_MI", "")
   annual_goal_mi <- if (nzchar(goal_env)) {

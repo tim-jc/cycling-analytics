@@ -480,7 +480,7 @@ format_dashboard_number <- function(value, digits = 0) {
 }
 
 get_latest_ride_summary <- function(activities) {
-  latest_ride <- select_latest_ride(activities)
+  latest_ride <- select_latest_cycling_activity(activities)
 
   if (nrow(latest_ride) == 0) {
     return("Latest ride: none")
@@ -488,9 +488,13 @@ get_latest_ride_summary <- function(activities) {
 
   distance_mi <- latest_ride$distance_metres * 0.000621371
   ride_date <- format(as.Date(latest_ride$start_date_local), "%d %b")
+  is_virtual <- identical(latest_ride$sport_type[[1]], "VirtualRide") ||
+    ("is_trainer" %in% names(latest_ride) &&
+      isTRUE(as.logical(latest_ride$is_trainer[[1]])))
+  ride_qualifier <- if (is_virtual) " (virtual)" else ""
 
   glue::glue(
-    "Latest ride: {format_dashboard_number(distance_mi, 1)} mi on {ride_date}"
+    "Latest ride: {format_dashboard_number(distance_mi, 1)} mi{ride_qualifier} on {ride_date}"
   )
 }
 

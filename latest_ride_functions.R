@@ -4,6 +4,7 @@
 # activity classification. TODO: consume a reusable cycling-platform activity
 # classification if coaching, MCP, or other consumers justify that product.
 LATEST_SIGNIFICANT_RIDE_MIN_DISTANCE_MI <- 20
+LATEST_SIGNIFICANT_INDOOR_MIN_MOVING_SECONDS <- 20 * 60
 METRES_PER_MILE <- 1609.344
 
 empty_latest_ride_activity <- function() {
@@ -59,13 +60,16 @@ empty_latest_ride_efforts <- function() {
 
 select_latest_significant_activity <- function(
   activities,
-  min_distance_mi = LATEST_SIGNIFICANT_RIDE_MIN_DISTANCE_MI
+  min_distance_mi = LATEST_SIGNIFICANT_RIDE_MIN_DISTANCE_MI,
+  min_indoor_moving_seconds = LATEST_SIGNIFICANT_INDOOR_MIN_MOVING_SECONDS
 ) {
   required <- c(
     "activity_id",
     "sport_type",
     "start_datetime_local",
-    "distance_metres"
+    "distance_metres",
+    "moving_time_seconds",
+    "is_trainer"
   )
   if (!all(required %in% names(activities))) {
     stop(
@@ -76,10 +80,19 @@ select_latest_significant_activity <- function(
   }
 
   eligible <- activities |>
+    dplyr::mutate(
+      is_indoor = .data$sport_type == "VirtualRide" |
+        dplyr::coalesce(as.logical(.data$is_trainer), FALSE)
+    ) |>
     dplyr::filter(
       .data$sport_type %in% c("Ride", "VirtualRide"),
-      !is.na(.data$distance_metres),
-      .data$distance_metres >= min_distance_mi * METRES_PER_MILE
+      !is.na(.data$start_datetime_local),
+      (.data$is_indoor &
+        !is.na(.data$moving_time_seconds) &
+        .data$moving_time_seconds >= min_indoor_moving_seconds) |
+        (!.data$is_indoor &
+          !is.na(.data$distance_metres) &
+          .data$distance_metres >= min_distance_mi * METRES_PER_MILE)
     ) |>
     dplyr::arrange(
       dplyr::desc(.data$start_datetime_local),
@@ -91,7 +104,8 @@ select_latest_significant_activity <- function(
 
 get_latest_significant_ride <- function(
   con,
-  min_distance_mi = LATEST_SIGNIFICANT_RIDE_MIN_DISTANCE_MI
+  min_distance_mi = LATEST_SIGNIFICANT_RIDE_MIN_DISTANCE_MI,
+  min_indoor_moving_seconds = LATEST_SIGNIFICANT_INDOOR_MIN_MOVING_SECONDS
 ) {
   result <- DBI::dbGetQuery(
     con,
@@ -103,10 +117,19 @@ get_latest_significant_ride <- function(
       weighted_average_power_watts, energy_kilojoules, has_streams, has_laps
     FROM cycling_platform_silver.activities
     WHERE sport_type IN ('Ride', 'VirtualRide')
-      AND distance_metres >= ?
+      AND (
+        ((sport_type = 'VirtualRide' OR COALESCE(is_trainer, 0) = 1)
+          AND moving_time_seconds >= ?)
+        OR
+        (sport_type = 'Ride' AND COALESCE(is_trainer, 0) = 0
+          AND distance_metres >= ?)
+      )
     ORDER BY start_datetime_local DESC, activity_id DESC
     LIMIT 1",
-    params = list(min_distance_mi * METRES_PER_MILE)
+    params = list(
+      min_indoor_moving_seconds,
+      min_distance_mi * METRES_PER_MILE
+    )
   ) |>
     tibble::as_tibble()
 
@@ -242,11 +265,16 @@ latest_ride_stream_availability <- function(streams) {
 }
 
 latest_ride_empty_message <- function(
-  min_distance_mi = LATEST_SIGNIFICANT_RIDE_MIN_DISTANCE_MI
+  min_distance_mi = LATEST_SIGNIFICANT_RIDE_MIN_DISTANCE_MI,
+  min_indoor_moving_seconds = LATEST_SIGNIFICANT_INDOOR_MIN_MOVING_SECONDS
 ) {
   sprintf(
-    "No qualifying ride found. Latest Ride currently includes the most recent cycling activity of at least %g miles.",
-    min_distance_mi
+    paste0(
+      "No qualifying ride found. Latest Ride currently includes the most recent ",
+      "outdoor ride of at least %g miles or indoor/trainer session of at least %g minutes."
+    ),
+    min_distance_mi,
+    min_indoor_moving_seconds / 60
   )
 }
 

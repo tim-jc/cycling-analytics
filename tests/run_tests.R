@@ -422,6 +422,69 @@ run_test("render runtime exposes no Git publication operations", {
   expect_true(!exists("send_ntfy_message", mode = "function"))
 })
 
+notification_activity_fixture <- tibble(
+  activity_id = c(20010000001, 20025109853, 20030000001),
+  is_trainer = c(FALSE, FALSE, FALSE),
+  sport_type = c("Ride", "VirtualRide", "Run"),
+  start_datetime_local = as.POSIXct(c(
+    "2026-08-31 08:00:00", "2026-09-03 20:16:34", "2026-09-04 08:00:00"
+  )),
+  start_date_local = as.Date(c("2026-08-31", "2026-09-03", "2026-09-04")),
+  distance_metres = c(50 * METRES_PER_MILE, 30224.1, 10 * METRES_PER_MILE),
+  moving_time_seconds = c(10800, 3641, 3600)
+)
+
+run_test("notification selects newest cycling activity without significance filtering", {
+  selected <- select_latest_cycling_activity(notification_activity_fixture)
+  expect_equal(selected$activity_id, 20025109853)
+  expect_true(selected$distance_metres / METRES_PER_MILE < 20)
+})
+
+run_test("newer short ride supersedes older significant ride in notification", {
+  fixture <- notification_activity_fixture |>
+    dplyr::filter(.data$sport_type == "Ride") |>
+    dplyr::bind_rows(tibble(
+      activity_id = 20020000002,
+      is_trainer = FALSE,
+      sport_type = "Ride",
+      start_datetime_local = as.POSIXct("2026-09-02 08:00:00"),
+      start_date_local = as.Date("2026-09-02"),
+      distance_metres = 3 * METRES_PER_MILE,
+      moving_time_seconds = 900
+    ))
+  expect_equal(select_latest_cycling_activity(fixture)$activity_id, 20020000002)
+})
+
+run_test("current 3 September virtual ride supersedes 31 August ride", {
+  fixture <- notification_activity_fixture |>
+    dplyr::filter(.data$activity_id %in% c(20010000001, 20025109853))
+  expect_equal(select_latest_cycling_activity(fixture)$activity_id, 20025109853)
+})
+
+run_test("virtual notification includes a concise qualifier", {
+  expect_equal(
+    as.character(get_latest_ride_summary(notification_activity_fixture)),
+    "Latest ride: 18.8 mi (virtual) on 03 Sep"
+  )
+})
+
+run_test("outdoor notification remains concise", {
+  outdoor <- notification_activity_fixture |>
+    dplyr::filter(.data$activity_id == 20010000001)
+  expect_equal(
+    as.character(get_latest_ride_summary(outdoor)),
+    "Latest ride: 50.0 mi on 31 Aug"
+  )
+})
+
+run_test("notification selection is independent of Latest Ride significance", {
+  short_virtual <- notification_activity_fixture |>
+    dplyr::filter(.data$activity_id == 20025109853) |>
+    dplyr::mutate(moving_time_seconds = 10 * 60)
+  expect_equal(select_latest_cycling_activity(short_virtual)$activity_id, 20025109853)
+  expect_equal(nrow(select_latest_significant_activity(short_virtual)), 0L)
+})
+
 run_test("latest ride uses start time when rides share a date", {
   same_day <- tibble(
     activity_id = c(19501207283, 19502918454),
@@ -518,12 +581,14 @@ run_test("empty outdoor streams return four placeholder extrema", {
 
 latest_ride_fixture <- tibble(
   activity_id = c(1, 2, 3, 4),
+  is_trainer = c(FALSE, FALSE, FALSE, FALSE),
   sport_type = c("Ride", "Ride", "VirtualRide", "Run"),
   start_datetime_local = as.POSIXct(c(
     "2026-07-20 08:00:00", "2026-07-22 08:00:00",
     "2026-07-23 08:00:00", "2026-07-24 08:00:00"
   )),
-  distance_metres = c(19.9, 20, 30, 50) * METRES_PER_MILE
+  distance_metres = c(19.9, 20, 18.8, 50) * METRES_PER_MILE,
+  moving_time_seconds = c(3600, 3600, 3641, 3600)
 )
 
 run_test("Latest Ride skips a newer activity under 20 miles", {
@@ -542,6 +607,25 @@ run_test("Latest Ride chooses the newest qualifying cycling activity", {
   expect_equal(selected$activity_id, 3)
 })
 
+run_test("Latest Ride includes substantive virtual sessions below 20 miles", {
+  selected <- select_latest_significant_activity(latest_ride_fixture |> dplyr::slice(3))
+  expect_equal(selected$activity_id, 3)
+})
+
+run_test("Latest Ride excludes aborted indoor sessions", {
+  aborted <- latest_ride_fixture |>
+    dplyr::slice(3) |>
+    dplyr::mutate(moving_time_seconds = 19 * 60)
+  expect_equal(nrow(select_latest_significant_activity(aborted)), 0L)
+})
+
+run_test("Latest Ride treats trainer-flagged Ride as indoor", {
+  trainer <- latest_ride_fixture |>
+    dplyr::slice(1) |>
+    dplyr::mutate(is_trainer = TRUE, moving_time_seconds = 20 * 60)
+  expect_equal(select_latest_significant_activity(trainer)$activity_id, 1)
+})
+
 run_test("Latest Ride excludes non-cycling activities", {
   selected <- select_latest_significant_activity(latest_ride_fixture |> dplyr::slice(4))
   expect_equal(nrow(selected), 0L)
@@ -550,7 +634,9 @@ run_test("Latest Ride excludes non-cycling activities", {
 run_test("Latest Ride has an explicit empty state with the selection rule", {
   selected <- select_latest_significant_activity(latest_ride_fixture |> dplyr::slice(1))
   expect_equal(nrow(selected), 0L)
-  expect_true(grepl("at least 20 miles", latest_ride_empty_message(), fixed = TRUE))
+  empty_message <- latest_ride_empty_message()
+  expect_true(grepl("at least 20 miles", empty_message, fixed = TRUE))
+  expect_true(grepl("at least 20 minutes", empty_message, fixed = TRUE))
 })
 
 run_test("missing one Latest Ride stream does not suppress other traces", {

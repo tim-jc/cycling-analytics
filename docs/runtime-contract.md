@@ -174,6 +174,11 @@ uses that value unchanged in both the dashboard Summary and notification
 context without deriving or parsing the production schedule. A missing or
 empty value is reported as `not scheduled`.
 
+The notification context's `Latest ride:` line is an operational freshness
+heartbeat. It uses the chronologically latest cycling activity without the
+Latest Ride dashboard page's distance or indoor-duration significance rules.
+The dashboard page applies those presentation rules independently.
+
 The application supports only the publication-neutral `render` mode. The Mac
 is a development environment and does not own scheduled production execution.
 Git contains source and documentation only; generated dashboard output is not
