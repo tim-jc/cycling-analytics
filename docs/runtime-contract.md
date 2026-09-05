@@ -176,7 +176,7 @@ empty value is reported as `not scheduled`.
 
 The notification context's `Latest ride:` line is an operational freshness
 heartbeat. It uses the chronologically latest cycling activity without the
-Latest Ride dashboard page's distance or indoor-duration significance rules.
+Latest Ride dashboard page's `Ride` distance or `VirtualRide` duration rules.
 The dashboard page applies those presentation rules independently.
 
 The application supports only the publication-neutral `render` mode. The Mac

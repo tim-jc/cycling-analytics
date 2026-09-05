@@ -9,16 +9,17 @@ calculations outside the presentation markup.
 The page currently selects the newest significant cycling activity using two
 presentation-specific rules:
 
-- outdoor `Ride`: canonical distance of at least 20 miles;
-- `VirtualRide` or trainer-flagged `Ride`: canonical moving time of at least
-  20 minutes.
+- `Ride`: canonical distance of at least 20 miles;
+- `VirtualRide`: canonical moving time of at least 20 minutes.
 
 Both thresholds are inclusive and are held in
 `LATEST_SIGNIFICANT_RIDE_MIN_DISTANCE_MI` and
 `LATEST_SIGNIFICANT_INDOOR_MIN_MOVING_SECONDS` in
-`latest_ride_functions.R`. `VirtualRide` is sufficient to classify an activity
-as indoor because the platform's trainer flag is not necessarily set for
-virtual activities.
+`latest_ride_functions.R`. `sport_type` is the sole virtual-cycling
+classification used here. Strava's source trainer flag is not consumed as a
+canonical indoor or virtual classification. A historical lost-Zwift activity
+stored as a `Ride` consequently follows the distance rule unless the ecosystem
+later introduces an explicit canonical override.
 
 This is a temporary dashboard heuristic, not a canonical platform
 classification. A future cycling-platform activity-classification product can
@@ -30,7 +31,7 @@ fall back to an insignificant or non-cycling activity.
 This analytical selector is deliberately distinct from the production success
 notification. The notification is a freshness heartbeat and reports the
 chronologically latest `Ride` or `VirtualRide` without either significance
-threshold. Virtual/trainer activities receive a `(virtual)` qualifier there so
+threshold. `VirtualRide` activities receive a `(virtual)` qualifier there so
 their distance is not presented as an outdoor ride.
 
 ## Data flow
@@ -78,7 +79,7 @@ IF, TSS, and any PDF-report behaviour.
 
 ## Tests
 
-Run `Rscript tests/run_tests.R`. The suite covers both outdoor and indoor
+Run `Rscript tests/run_tests.R`. The suite covers both `Ride` and `VirtualRide`
 selection thresholds, cycling-only eligibility, newest qualifying selection,
 notification independence, empty-state wording, and component-level handling
 of missing streams.

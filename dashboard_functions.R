@@ -56,7 +56,6 @@ get_activities <- function(
     conn = con,
     "SELECT
       activity_id,
-      is_trainer,
       sport_type,
       start_datetime_local,
       start_date_local,
@@ -102,7 +101,6 @@ get_tbr_streams <- function(con) {
     conn = con,
     "SELECT
       a.activity_id,
-      a.is_trainer,
       a.sport_type,
       a.start_date_local,
       a.distance_metres, 

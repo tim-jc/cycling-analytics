@@ -68,8 +68,7 @@ select_latest_significant_activity <- function(
     "sport_type",
     "start_datetime_local",
     "distance_metres",
-    "moving_time_seconds",
-    "is_trainer"
+    "moving_time_seconds"
   )
   if (!all(required %in% names(activities))) {
     stop(
@@ -80,17 +79,13 @@ select_latest_significant_activity <- function(
   }
 
   eligible <- activities |>
-    dplyr::mutate(
-      is_indoor = .data$sport_type == "VirtualRide" |
-        dplyr::coalesce(as.logical(.data$is_trainer), FALSE)
-    ) |>
     dplyr::filter(
       .data$sport_type %in% c("Ride", "VirtualRide"),
       !is.na(.data$start_datetime_local),
-      (.data$is_indoor &
+      (.data$sport_type == "VirtualRide" &
         !is.na(.data$moving_time_seconds) &
         .data$moving_time_seconds >= min_indoor_moving_seconds) |
-        (!.data$is_indoor &
+        (.data$sport_type == "Ride" &
           !is.na(.data$distance_metres) &
           .data$distance_metres >= min_distance_mi * METRES_PER_MILE)
     ) |>
@@ -118,11 +113,9 @@ get_latest_significant_ride <- function(
     FROM cycling_platform_silver.activities
     WHERE sport_type IN ('Ride', 'VirtualRide')
       AND (
-        ((sport_type = 'VirtualRide' OR COALESCE(is_trainer, 0) = 1)
-          AND moving_time_seconds >= ?)
+        (sport_type = 'VirtualRide' AND moving_time_seconds >= ?)
         OR
-        (sport_type = 'Ride' AND COALESCE(is_trainer, 0) = 0
-          AND distance_metres >= ?)
+        (sport_type = 'Ride' AND distance_metres >= ?)
       )
     ORDER BY start_datetime_local DESC, activity_id DESC
     LIMIT 1",
@@ -271,7 +264,7 @@ latest_ride_empty_message <- function(
   sprintf(
     paste0(
       "No qualifying ride found. Latest Ride currently includes the most recent ",
-      "outdoor ride of at least %g miles or indoor/trainer session of at least %g minutes."
+      "Ride of at least %g miles or VirtualRide of at least %g minutes."
     ),
     min_distance_mi,
     min_indoor_moving_seconds / 60
