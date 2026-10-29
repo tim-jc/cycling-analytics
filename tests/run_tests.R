@@ -576,6 +576,157 @@ run_test("empty outdoor streams return four placeholder extrema", {
   expect_equal(extrema$extremity, c("N", "S", "E", "W"))
 })
 
+geocode_stream_fixture <- tibble(
+  sport_type = "Ride",
+  latitude = c(51.0, 52.0, 51.5, 51.6),
+  longitude = c(-1.0, -0.5, -2.0, 1.0)
+)
+
+mock_geocoding_error <- function(message, class = "curl_error") {
+  structure(
+    list(message = message, call = NULL),
+    class = c(class, "error", "condition")
+  )
+}
+
+successful_geocoder <- function(positions) {
+  positions |>
+    mutate(city = paste0("Place ", row_number()))
+}
+
+run_test("successful optional geocoding enriches extrema", {
+  extrema <- get_position_extremities(
+    geocode_stream_fixture,
+    geocoder = successful_geocoder,
+    cache = new.env(parent = emptyenv())
+  )
+  expect_true(all(extrema$geocode_status == "resolved"))
+  expect_true(all(grepl("^Place ", extrema$city)))
+})
+
+run_test("optional geocoding connection failure preserves coordinates", {
+  warnings <- character()
+  calls <- 0L
+  cache <- new.env(parent = emptyenv())
+  failed_geocoder <- function(positions) {
+    calls <<- calls + 1L
+    stop(mock_geocoding_error("Couldn't connect to server"))
+  }
+  extrema <- get_position_extremities(
+    geocode_stream_fixture,
+    geocoder = failed_geocoder,
+    cache = cache,
+    warn = function(message, ...) warnings <<- c(warnings, message)
+  )
+  get_position_extremities(
+    geocode_stream_fixture,
+    geocoder = failed_geocoder,
+    cache = cache,
+    warn = function(message, ...) warnings <<- c(warnings, message)
+  )
+  expect_equal(extrema$latitude, c(51, 52, 51.5, 51.6))
+  expect_true(all(extrema$geocode_status == "failed"))
+  expect_equal(calls, 1L)
+  expect_equal(length(warnings), 1L)
+  expect_true(grepl("Coordinates were preserved", warnings[[1]], fixed = TRUE))
+})
+
+run_test("optional geocoding timeout degrades gracefully", {
+  failed_geocoder <- function(positions) {
+    stop(mock_geocoding_error("Timeout was reached after 4001 milliseconds"))
+  }
+  extrema <- get_position_extremities(
+    geocode_stream_fixture,
+    geocoder = failed_geocoder,
+    cache = new.env(parent = emptyenv()),
+    warn = function(...) invisible(NULL)
+  )
+  expect_true(all(extrema$geocode_status == "failed"))
+})
+
+run_test("cached geographic enrichment is preserved without another request", {
+  cache <- new.env(parent = emptyenv())
+  keys <- position_geocode_cache_key(
+    geocode_stream_fixture$latitude,
+    geocode_stream_fixture$longitude
+  )
+  for (index in seq_along(keys)) {
+    cached_value <- stats::setNames(
+      as.list(rep(NA_character_, length(POSITION_GEOCODE_FIELDS))),
+      POSITION_GEOCODE_FIELDS
+    )
+    cached_value$city <- paste0("Cached ", index)
+    cached_value$geocode_status <- "resolved"
+    assign(
+      keys[[index]],
+      cached_value,
+      envir = cache
+    )
+  }
+  calls <- 0L
+  should_not_run <- function(positions) {
+    calls <<- calls + 1L
+    stop("unexpected request")
+  }
+  extrema <- get_position_extremities(
+    geocode_stream_fixture,
+    geocoder = should_not_run,
+    cache = cache
+  )
+  expect_equal(calls, 0L)
+  expect_true(all(grepl("^Cached ", extrema$city)))
+})
+
+run_test("unresolved locations remain distinct from service failures", {
+  unresolved_geocoder <- function(positions) positions
+  extrema <- get_position_extremities(
+    geocode_stream_fixture,
+    geocoder = unresolved_geocoder,
+    cache = new.env(parent = emptyenv())
+  )
+  expect_true(all(extrema$geocode_status == "unresolved"))
+  expect_true(all(is.na(extrema$city)))
+  value_box <- get_coord_valuebox("N", extrema)
+  expect_true(grepl("Unknown location", as.character(value_box), fixed = TRUE))
+})
+
+run_test("optional geocoding does not swallow programming errors", {
+  broken_geocoder <- function(positions) stop("unexpected result-shape bug")
+  expect_error(
+    get_position_extremities(
+      geocode_stream_fixture,
+      geocoder = broken_geocoder,
+      cache = new.env(parent = emptyenv())
+    ),
+    "unexpected result-shape bug"
+  )
+})
+
+run_test("geocoding failure does not affect ride selection or metrics", {
+  ride_fixture <- tibble(
+    activity_id = c(1, 2),
+    sport_type = c("Ride", "VirtualRide"),
+    start_datetime_local = as.POSIXct(c("2026-10-01 08:00:00", "2026-10-02 08:00:00")),
+    distance_metres = c(25, 10) * METRES_PER_MILE,
+    moving_time_seconds = c(3600, 1800)
+  )
+  selected_before <- select_latest_significant_activity(ride_fixture)
+  distance_before <- sum(ride_fixture$distance_metres)
+  failed_geocoder <- function(positions) {
+    stop(mock_geocoding_error("Failed to connect to nominatim.openstreetmap.org"))
+  }
+  extrema <- get_position_extremities(
+    geocode_stream_fixture,
+    geocoder = failed_geocoder,
+    cache = new.env(parent = emptyenv()),
+    warn = function(...) invisible(NULL)
+  )
+  selected_after <- select_latest_significant_activity(ride_fixture)
+  expect_equal(selected_after$activity_id, selected_before$activity_id)
+  expect_equal(sum(ride_fixture$distance_metres), distance_before)
+  expect_true(nrow(extrema) > 0L)
+})
+
 latest_ride_fixture <- tibble(
   activity_id = c(1, 2, 3, 4),
   sport_type = c("Ride", "Ride", "VirtualRide", "Run"),

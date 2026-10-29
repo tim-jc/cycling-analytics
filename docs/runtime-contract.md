@@ -165,6 +165,29 @@ raster maps require `CARTO_BASEMAP_API_KEY`; supply it to the container at
 runtime through the infrastructure-managed production environment.
 It must not be embedded in the Dockerfile or image.
 
+### Optional reverse-geocoding enrichment
+
+During dashboard preparation, the four current-year outdoor geographic extrema
+(north, south, east and west) are reverse-geocoded through Nominatim by
+`tidygeocoder`. This supplies place labels for the Map-page value boxes only;
+the coordinates, ride selection, metrics, charts and static-site correctness do
+not depend on those labels.
+
+Successful and unresolved lookups are cached by six-decimal coordinate for the
+life of the R process, avoiding duplicate requests within one render. The batch
+is still requested again by a later one-shot container render because no
+persistent application-state location is currently part of the runtime
+contract. Introducing persistence would require an infrastructure-owned writable
+state mount or, preferably if multiple consumers need the enrichment, a trusted
+cycling-platform geographic product.
+
+Connection, DNS, timeout, TLS and HTTP-service failures at the Nominatim
+boundary are treated as optional enrichment failures. The render logs one
+warning containing the affected coordinates and underlying error, retains the
+coordinates, and displays `Unknown location`. A valid response with no place
+match is tracked separately as unresolved. Unexpected programming or data-shape
+errors still fail the render normally.
+
 ## Scheduling and locking
 
 Scheduling, concurrency control and production locking are infrastructure

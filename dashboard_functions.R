@@ -211,7 +211,183 @@ build_ytd_stats <- function(activities, reference_date = Sys.Date()) {
     ungroup()
 }
 
-get_position_extremities <- function(ytd_streams) {
+POSITION_GEOCODE_FIELDS <- c(
+  "hamlet", "village", "town", "suburb", "neighbourhood", "city"
+)
+
+.position_geocode_cache <- new.env(parent = emptyenv())
+
+position_geocode_cache_key <- function(latitude, longitude) {
+  sprintf("%.6f,%.6f", latitude, longitude)
+}
+
+is_optional_geocoding_failure <- function(error) {
+  if (inherits(error, c("curl_error", "httr2_failure", "http_error"))) {
+    return(TRUE)
+  }
+
+  grepl(
+    paste(
+      c(
+        "Couldn't connect to server",
+        "Could not resolve host",
+        "Failed to connect",
+        "Timeout was reached",
+        "timed out",
+        "HTTP [45][0-9][0-9]",
+        "server returned nothing",
+        "SSL connect"
+      ),
+      collapse = "|"
+    ),
+    conditionMessage(error),
+    ignore.case = TRUE
+  )
+}
+
+default_position_reverse_geocoder <- function(positions) {
+  tidygeocoder::reverse_geocode(
+    positions,
+    long = longitude,
+    lat = latitude,
+    full_results = TRUE
+  )
+}
+
+default_position_geocode_warning <- function(message, ...) {
+  timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  cat(
+    sprintf("[%s] Warning=Optional reverse geocoding %s\n", timestamp, message),
+    file = stderr()
+  )
+  invisible(NULL)
+}
+
+normalise_position_geocode_result <- function(result) {
+  for (field in POSITION_GEOCODE_FIELDS) {
+    if (!field %in% names(result)) {
+      result[[field]] <- NA_character_
+    }
+  }
+
+  result |>
+    mutate(
+      geocode_status = if_else(
+        if_any(
+          all_of(POSITION_GEOCODE_FIELDS),
+          ~ !is.na(.x) & nzchar(as.character(.x))
+        ),
+        "resolved",
+        "unresolved"
+      )
+    ) |>
+    select(all_of(POSITION_GEOCODE_FIELDS), geocode_status)
+}
+
+geocode_position_extremities <- function(
+  positions,
+  geocoder = getOption(
+    "cycling_analytics_position_geocoder",
+    default_position_reverse_geocoder
+  ),
+  cache = .position_geocode_cache,
+  warn = default_position_geocode_warning
+) {
+  if (nrow(positions) == 0L) {
+    return(positions)
+  }
+
+  positions <- positions |>
+    mutate(
+      .geocode_row = row_number(),
+      .geocode_key = position_geocode_cache_key(.data$latitude, .data$longitude)
+    )
+
+  unique_locations <- positions |>
+    distinct(.data$.geocode_key, .data$latitude, .data$longitude)
+  uncached <- unique_locations |>
+    filter(!vapply(.data$.geocode_key, exists, logical(1), envir = cache, inherits = FALSE))
+
+  if (nrow(uncached) > 0L) {
+    geocoded <- tryCatch(
+      geocoder(uncached),
+      error = function(error) {
+        if (!is_optional_geocoding_failure(error)) {
+          stop(error)
+        }
+
+        lookup_ids <- paste(uncached$.geocode_key, collapse = "; ")
+        warn(
+          sprintf(
+            paste0(
+              "Optional Nominatim reverse geocoding failed for %s: %s. ",
+              "Coordinates were preserved; unknown location labels will be used."
+            ),
+            lookup_ids,
+            conditionMessage(error)
+          ),
+          call. = FALSE
+        )
+        failed_result <- c(
+          stats::setNames(
+            as.list(rep(NA_character_, length(POSITION_GEOCODE_FIELDS))),
+            POSITION_GEOCODE_FIELDS
+          ),
+          list(geocode_status = "failed")
+        )
+        for (key in uncached$.geocode_key) {
+          assign(key, failed_result, envir = cache)
+        }
+        NULL
+      }
+    )
+
+    if (!is.null(geocoded)) {
+      if (nrow(geocoded) != nrow(uncached)) {
+        stop(
+          "Reverse geocoder returned an unexpected number of rows.",
+          call. = FALSE
+        )
+      }
+
+      normalised <- normalise_position_geocode_result(geocoded)
+      for (index in seq_len(nrow(uncached))) {
+        assign(
+          uncached$.geocode_key[[index]],
+          as.list(normalised[index, , drop = FALSE]),
+          envir = cache
+        )
+      }
+    }
+  }
+
+  enrichment <- lapply(positions$.geocode_key, function(key) {
+    if (exists(key, envir = cache, inherits = FALSE)) {
+      get(key, envir = cache, inherits = FALSE)
+    } else {
+      c(
+        stats::setNames(as.list(rep(NA_character_, length(POSITION_GEOCODE_FIELDS))), POSITION_GEOCODE_FIELDS),
+        list(geocode_status = "failed")
+      )
+    }
+  }) |>
+    bind_rows()
+
+  bind_cols(
+    positions |> select(-all_of(c(".geocode_row", ".geocode_key"))),
+    enrichment
+  )
+}
+
+get_position_extremities <- function(
+  ytd_streams,
+  geocoder = getOption(
+    "cycling_analytics_position_geocoder",
+    default_position_reverse_geocoder
+  ),
+  cache = .position_geocode_cache,
+  warn = default_position_geocode_warning
+) {
   ytd_streams <- ytd_streams |> filter(sport_type == "Ride")
 
   # Manage the edge case early in the year when no outside rides logged yet
@@ -226,19 +402,11 @@ get_position_extremities <- function(ytd_streams) {
         )
       ) |>
       filter(!is.na(extremity)) |>
-      tidygeocoder::reverse_geocode(
-        long = longitude,
-        lat = latitude,
-        full_results = T
-      ) |>
-      bind_rows(tibble(
-        hamlet = NA_character_,
-        village = NA_character_, # ensure the village and suburb columns are present
-        town = NA_character_,
-        suburb = NA_character_,
-        neighbourhood = NA_character_,
-        city = NA_character_
-      ))
+      geocode_position_extremities(
+        geocoder = geocoder,
+        cache = cache,
+        warn = warn
+      )
   } else {
     position_extremities <- tibble(extremity = c("N", "S", "E", "W")) |>
       mutate(
@@ -249,7 +417,8 @@ get_position_extremities <- function(ytd_streams) {
         town = NA_character_,
         suburb = "No outside rides YTD",
         neighbourhood = NA_character_,
-        city = NA_character_
+        city = NA_character_,
+        geocode_status = "not_applicable"
       )
   }
   return(position_extremities)
@@ -1344,7 +1513,8 @@ get_coord_valuebox <- function(pos_needed, position_extremities) {
         !is.na(town) ~ town,
         !is.na(neighbourhood) ~ neighbourhood,
         !is.na(suburb) ~ suburb,
-        !is.na(city) ~ city
+        !is.na(city) ~ city,
+        TRUE ~ "Unknown location"
       )
     ) |>
     slice_head(n = 1)
