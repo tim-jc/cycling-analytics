@@ -1,6 +1,14 @@
 # TBR Family Adventures presentation model --------------------------------
 
 TBR_METRES_PER_MILE <- 1609.344
+TBR_FOCUS_DISTANCE_KM <- 25
+TBR_FOCUS_MIN_CLUSTER_SIZE <- 2L
+TBR_FOCUS_MAX_AREA_CONTROLS <- 6L
+TBR_FOCUS_MAX_OUTLIER_CONTROLS <- 3L
+TBR_FOCUS_VIEWPORT_PADDING_PX <- 24L
+TBR_FOCUS_LATEST_MAX_ZOOM <- 14L
+TBR_FOCUS_AREA_MAX_ZOOM <- 12L
+TBR_FOCUS_ALL_MAX_ZOOM <- 10L
 
 empty_tbr_activities <- function() {
   tibble::tibble(
@@ -205,7 +213,7 @@ draw_tbr_calendar <- function(calendar) {
     ggplot2::theme_minimal(base_size = 12) +
     ggplot2::theme(
       panel.grid = ggplot2::element_blank(),
-      legend.position = "bottom",
+      legend.position = "none",
       axis.text.x = ggplot2::element_text(angle = 0)
     )
 
@@ -347,9 +355,318 @@ prepare_tbr_route <- function(streams) {
   prepared
 }
 
+tbr_haversine_km <- function(latitude_from, longitude_from, latitude_to, longitude_to) {
+  earth_radius_km <- 6371.0088
+  to_radians <- pi / 180
+  latitude_from <- latitude_from * to_radians
+  latitude_to <- latitude_to * to_radians
+  latitude_delta <- latitude_to - latitude_from
+  longitude_delta <- (longitude_to - longitude_from) * to_radians
+  haversine <- sin(latitude_delta / 2)^2 +
+    cos(latitude_from) * cos(latitude_to) * sin(longitude_delta / 2)^2
+  haversine <- pmin(1, pmax(0, haversine))
+  2 * earth_radius_km * atan2(sqrt(haversine), sqrt(1 - haversine))
+}
+
+tbr_representative_distance_matrix <- function(representatives) {
+  count <- nrow(representatives)
+  distances <- matrix(0, nrow = count, ncol = count)
+  if (count < 2L) return(distances)
+
+  for (from in seq_len(count - 1L)) {
+    to <- seq.int(from + 1L, count)
+    values <- tbr_haversine_km(
+      representatives$latitude[[from]],
+      representatives$longitude[[from]],
+      representatives$latitude[to],
+      representatives$longitude[to]
+    )
+    distances[from, to] <- values
+    distances[to, from] <- values
+  }
+  distances
+}
+
+discover_tbr_focus_areas <- function(
+  representatives,
+  distance_km = TBR_FOCUS_DISTANCE_KM,
+  min_cluster_size = TBR_FOCUS_MIN_CLUSTER_SIZE,
+  max_area_controls = TBR_FOCUS_MAX_AREA_CONTROLS,
+  max_outlier_controls = TBR_FOCUS_MAX_OUTLIER_CONTROLS,
+  latest_mapped_activity_id = NA_character_
+) {
+  if (distance_km <= 0 || min_cluster_size < 1L ||
+      max_area_controls < 0L || max_outlier_controls < 0L) {
+    stop("TBR focus-area parameters must be positive or zero where applicable.", call. = FALSE)
+  }
+  if (nrow(representatives) == 0L) {
+    return(list(assignments = tibble::tibble(), controls = tibble::tibble()))
+  }
+
+  ordered <- representatives |>
+    dplyr::arrange(.data$activity_id)
+  if (nrow(ordered) == 1L) {
+    cluster_ids <- 1L
+  } else {
+    cluster_ids <- stats::cutree(
+      stats::hclust(
+        stats::as.dist(tbr_representative_distance_matrix(ordered)),
+        method = "complete"
+      ),
+      h = distance_km
+    )
+  }
+  ordered$cluster_id <- as.integer(cluster_ids)
+
+  cluster_summary <- ordered |>
+    dplyr::group_by(.data$cluster_id) |>
+    dplyr::summarise(
+      activity_count = dplyr::n(),
+      first_start = min(.data$start_datetime_local),
+      first_activity_id = min(.data$activity_id),
+      .groups = "drop"
+    )
+  meaningful <- cluster_summary |>
+    dplyr::filter(.data$activity_count >= min_cluster_size) |>
+    dplyr::arrange(
+      .data$first_start,
+      .data$first_activity_id,
+      .data$cluster_id
+    ) |>
+    dplyr::slice_head(n = max_area_controls) |>
+    dplyr::mutate(
+      control_type = "area",
+      control_label = paste("Area", dplyr::row_number())
+    )
+
+  assignments <- ordered |>
+    dplyr::left_join(
+      dplyr::select(
+        meaningful,
+        "cluster_id",
+        "control_type",
+        "control_label"
+      ),
+      by = "cluster_id"
+    )
+
+  outliers <- assignments |>
+    dplyr::filter(
+      is.na(.data$control_type),
+      .data$activity_id != as.character(latest_mapped_activity_id)
+    ) |>
+    dplyr::arrange(
+      dplyr::desc(.data$start_datetime_local),
+      dplyr::desc(.data$activity_id)
+    ) |>
+    dplyr::slice_head(n = max_outlier_controls) |>
+    dplyr::mutate(
+      control_type = "outlier",
+      control_label = paste("One-off", dplyr::row_number())
+    )
+
+  if (nrow(outliers)) {
+    outlier_labels <- dplyr::select(
+      outliers,
+      "activity_id",
+      "control_type",
+      "control_label"
+    )
+    assignments <- assignments |>
+      dplyr::select(-dplyr::all_of(c("control_type", "control_label"))) |>
+      dplyr::left_join(outlier_labels, by = "activity_id") |>
+      dplyr::left_join(
+        dplyr::select(
+          meaningful,
+          "cluster_id",
+          area_control_type = "control_type",
+          area_control_label = "control_label"
+        ),
+        by = "cluster_id"
+      ) |>
+      dplyr::mutate(
+        control_type = dplyr::coalesce(.data$area_control_type, .data$control_type),
+        control_label = dplyr::coalesce(.data$area_control_label, .data$control_label)
+      ) |>
+      dplyr::select(-dplyr::all_of(c("area_control_type", "area_control_label")))
+  }
+
+  controls <- assignments |>
+    dplyr::filter(!is.na(.data$control_type)) |>
+    dplyr::distinct(.data$control_type, .data$control_label) |>
+    dplyr::arrange(
+      factor(.data$control_type, levels = c("area", "outlier")),
+      .data$control_label
+    )
+
+  list(
+    assignments = dplyr::arrange(assignments, .data$activity_id),
+    controls = controls
+  )
+}
+
+tbr_route_geometry <- function(route) {
+  dplyr::bind_rows(route$segments) |>
+    dplyr::arrange(.data$sample_index)
+}
+
+tbr_route_representatives <- function(routes) {
+  if (length(routes) == 0L) {
+    return(tibble::tibble(
+      activity_id = character(),
+      start_datetime_local = as.POSIXct(character()),
+      latitude = double(),
+      longitude = double()
+    ))
+  }
+
+  purrr::imap_dfr(routes, function(route, activity_id) {
+    geometry <- tbr_route_geometry(route)
+    first <- geometry[1, , drop = FALSE]
+    tibble::tibble(
+      activity_id = as.character(activity_id),
+      start_datetime_local = route$activity$start_datetime_local[[1]],
+      latitude = first$latitude[[1]],
+      longitude = first$longitude[[1]]
+    )
+  })
+}
+
+tbr_geometry_bounds <- function(geometry) {
+  c(
+    south = min(geometry$latitude),
+    west = min(geometry$longitude),
+    north = max(geometry$latitude),
+    east = max(geometry$longitude)
+  )
+}
+
+build_tbr_viewports <- function(
+  routes,
+  latest_mapped_activity_id,
+  focus_areas,
+  latest_max_zoom = TBR_FOCUS_LATEST_MAX_ZOOM,
+  area_max_zoom = TBR_FOCUS_AREA_MAX_ZOOM,
+  all_max_zoom = TBR_FOCUS_ALL_MAX_ZOOM
+) {
+  if (length(routes) == 0L) {
+    return(tibble::tibble(
+      key = character(), label = character(), kind = character(),
+      south = double(), west = double(), north = double(), east = double(),
+      max_zoom = integer()
+    ))
+  }
+
+  latest_id <- as.character(latest_mapped_activity_id)
+  latest_bounds <- tbr_geometry_bounds(tbr_route_geometry(routes[[latest_id]]))
+  rows <- list(tibble::tibble(
+    key = "latest",
+    label = "Latest",
+    kind = "latest",
+    south = latest_bounds[["south"]],
+    west = latest_bounds[["west"]],
+    north = latest_bounds[["north"]],
+    east = latest_bounds[["east"]],
+    max_zoom = as.integer(latest_max_zoom)
+  ))
+
+  for (control_index in seq_len(nrow(focus_areas$controls))) {
+    control <- focus_areas$controls[control_index, , drop = FALSE]
+    activity_ids <- focus_areas$assignments |>
+      dplyr::filter(
+        .data$control_type == control$control_type[[1]],
+        .data$control_label == control$control_label[[1]]
+      ) |>
+      dplyr::pull(.data$activity_id)
+    geometry <- dplyr::bind_rows(lapply(routes[activity_ids], tbr_route_geometry))
+    bounds <- tbr_geometry_bounds(geometry)
+    rows[[length(rows) + 1L]] <- tibble::tibble(
+      key = paste0(control$control_type[[1]], "-", control_index),
+      label = control$control_label[[1]],
+      kind = control$control_type[[1]],
+      south = bounds[["south"]],
+      west = bounds[["west"]],
+      north = bounds[["north"]],
+      east = bounds[["east"]],
+      max_zoom = as.integer(area_max_zoom)
+    )
+  }
+
+  all_geometry <- dplyr::bind_rows(lapply(routes, tbr_route_geometry))
+  all_bounds <- tbr_geometry_bounds(all_geometry)
+  rows[[length(rows) + 1L]] <- tibble::tibble(
+    key = "all",
+    label = "All adventures",
+    kind = "all",
+    south = all_bounds[["south"]],
+    west = all_bounds[["west"]],
+    north = all_bounds[["north"]],
+    east = all_bounds[["east"]],
+    max_zoom = as.integer(all_max_zoom)
+  )
+  dplyr::bind_rows(rows)
+}
+
+tbr_focus_control_javascript <- function() {
+  paste(
+    "function(el, x, data) {",
+    "  var map = this;",
+    "  var views = data.viewports || [];",
+    "  function applyView(view, animate) {",
+    "    map.invalidateSize();",
+    "    map.fitBounds([[view.south, view.west], [view.north, view.east]], {",
+    "      padding: [data.padding, data.padding],",
+    "      maxZoom: view.max_zoom,",
+    "      animate: animate",
+    "    });",
+    "  }",
+    "  var FocusControl = L.Control.extend({",
+    "    options: { position: 'topleft' },",
+    "    onAdd: function() {",
+    "      var container = L.DomUtil.create('div', 'leaflet-bar tbr-focus-control');",
+    "      container.setAttribute('aria-label', 'Map views');",
+    "      views.forEach(function(view) {",
+    "        var button = L.DomUtil.create('button', 'tbr-focus-button', container);",
+    "        button.type = 'button';",
+    "        button.textContent = view.label;",
+    "        button.setAttribute('aria-label', 'Show ' + view.label);",
+    "        L.DomEvent.on(button, 'click', function(event) {",
+    "          L.DomEvent.preventDefault(event);",
+    "          L.DomEvent.stopPropagation(event);",
+    "          applyView(view, true);",
+    "        });",
+    "      });",
+    "      L.DomEvent.disableClickPropagation(container);",
+    "      L.DomEvent.disableScrollPropagation(container);",
+    "      return container;",
+    "    }",
+    "  });",
+    "  map.addControl(new FocusControl());",
+    "  if (views.length) {",
+    "    window.setTimeout(function() { applyView(views[0], false); }, 250);",
+    "  }",
+    "  if (window.jQuery) {",
+    "    window.jQuery(document).on('shown.bs.tab.tbrFocus-' + el.id, function() {",
+    "      if (el.offsetParent !== null) {",
+    "        window.setTimeout(function() { map.invalidateSize(); }, 50);",
+    "      }",
+    "    });",
+    "  }",
+    "}",
+    sep = "\n"
+  )
+}
+
 build_tbr_map_model <- function(activities, streams) {
   if (nrow(activities) == 0L) {
-    return(list(routes = list(), latest_mapped_activity_id = NA_character_, unmapped = 0L))
+    return(list(
+      routes = list(),
+      latest_mapped_activity_id = NA_character_,
+      unmapped = 0L,
+      representatives = tbr_route_representatives(list()),
+      focus_areas = discover_tbr_focus_areas(tbr_route_representatives(list())),
+      viewports = build_tbr_viewports(list(), NA_character_, list())
+    ))
   }
 
   ordered <- activities |>
@@ -371,10 +688,23 @@ build_tbr_map_model <- function(activities, streams) {
   }
 
   mapped_ids <- names(routes)
+  latest_mapped_activity_id <- if (length(mapped_ids)) tail(mapped_ids, 1) else NA_character_
+  representatives <- tbr_route_representatives(routes)
+  focus_areas <- discover_tbr_focus_areas(
+    representatives,
+    latest_mapped_activity_id = latest_mapped_activity_id
+  )
   list(
     routes = routes,
-    latest_mapped_activity_id = if (length(mapped_ids)) tail(mapped_ids, 1) else NA_character_,
-    unmapped = nrow(ordered) - length(mapped_ids)
+    latest_mapped_activity_id = latest_mapped_activity_id,
+    unmapped = nrow(ordered) - length(mapped_ids),
+    representatives = representatives,
+    focus_areas = focus_areas,
+    viewports = build_tbr_viewports(
+      routes,
+      latest_mapped_activity_id,
+      focus_areas
+    )
   )
 }
 
@@ -448,10 +778,21 @@ draw_tbr_adventure_map <- function(activities, streams) {
       " not mapped"
     )
   }
-  leaflet::addControl(
+  map <- leaflet::addControl(
     map,
     html = label,
     position = "topright",
     className = "tbr-map-status"
+  )
+  viewport_data <- lapply(seq_len(nrow(model$viewports)), function(index) {
+    as.list(model$viewports[index, , drop = FALSE])
+  })
+  htmlwidgets::onRender(
+    map,
+    tbr_focus_control_javascript(),
+    data = list(
+      viewports = viewport_data,
+      padding = TBR_FOCUS_VIEWPORT_PADDING_PX
+    )
   )
 }

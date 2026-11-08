@@ -51,6 +51,48 @@ adventure has no usable GPS, the label says `Latest mapped adventure` and the
 unmapped count remains visible rather than misrepresenting the older route as
 the newest adventure.
 
+The initial viewport fits that latest mapped adventure rather than the complete
+history. Map controls provide `Latest`, automatically discovered `Area N`
+views, a bounded number of recent `One-off N` views, and `All adventures`.
+These controls only change the viewport: every route, popup and route style
+remains loaded and unchanged.
+
+### Geographic focus areas
+
+Focus discovery uses the first valid coordinate of each mapped route as its
+activity-level representative. TBR outings commonly begin at a local or
+temporary riding base, and this choice prevents a long route's distant endpoint
+from bridging otherwise separate areas. It is only a clustering representative;
+it is not labelled or interpreted as a home address.
+
+Representative positions are compared with Haversine distance. Deterministic
+complete-link hierarchical clustering ensures that every pair of representatives
+within one cluster is no more than the configured threshold apart, avoiding the
+chaining behaviour of single-link clustering. Inputs are sorted by activity ID
+before clustering, so database row order does not affect the result.
+
+The explicit initial parameters in `tbr_functions.R` are:
+
+- `TBR_FOCUS_DISTANCE_KM = 25`;
+- `TBR_FOCUS_MIN_CLUSTER_SIZE = 2` adventures;
+- no more than six area controls;
+- no more than three recent isolated-adventure controls;
+- 24-pixel viewport padding;
+- maximum zoom 14 for Latest, 12 for areas and 10 for All adventures.
+
+Clusters are labelled `Area 1`, `Area 2`, and so on in order of their earliest
+adventure. No reverse geocoding or external location lookup is used. A single
+isolated latest adventure remains available through `Latest`; up to three other
+recent isolated adventures receive individual `One-off N` controls. Older
+isolated adventures remain present and clickable in `All adventures`, avoiding
+both dozens of buttons and one misleading combined outlier viewport.
+
+Area bounds use the complete valid route geometry of every assigned activity.
+Latest uses the complete latest mapped route, and All adventures uses all mapped
+geometry. Valid points are not silently removed to improve framing. Padding and
+maximum zoom safeguards prevent overly close views while allowing Leaflet to
+preserve the container aspect ratio.
+
 Popups contain the local date, activity name, canonical distance and a Strava
 link. Names are HTML-escaped. Map preparation accepts paired, finite,
 in-range coordinates, requires non-degenerate line geometry, preserves sample

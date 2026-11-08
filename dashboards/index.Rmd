@@ -149,6 +149,35 @@ dashboard_stage("Load data", {
   line-height: 1.35;
   padding: 7px 10px;
 }
+
+.tbr-focus-control {
+  background: rgba(255, 255, 255, 0.94);
+  display: flex;
+  flex-direction: column;
+}
+
+.tbr-focus-control .tbr-focus-button {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #D8DDE0;
+  color: #17324D;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 7px 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tbr-focus-control .tbr-focus-button:last-child {
+  border-bottom: 0;
+}
+
+.tbr-focus-control .tbr-focus-button:hover,
+.tbr-focus-control .tbr-focus-button:focus {
+  background: #EDF0F1;
+  outline: none;
+}
 ```
 
 Latest Ride
@@ -507,7 +536,7 @@ Row
 draw_map(ytd_streams)
 ```
 
-TBR | Our Adventures
+tbr
 ===================================== 
 
 Row {data-height=115}

@@ -1170,6 +1170,182 @@ run_test("TBR map model highlights latest mapped rather than latest activity", {
   expect_equal(model$unmapped, 1L)
 })
 
+tbr_representative_fixture <- function() {
+  tibble(
+    activity_id = as.character(1:7),
+    start_datetime_local = as.POSIXct("2026-01-01", tz = "Europe/London") +
+      seq_len(7) * 86400,
+    latitude = c(51.50, 51.52, 44.00, 44.04, 53.00, 53.03, 40.00),
+    longitude = c(-0.10, -0.12, -1.00, -1.03, -2.00, -2.02, 10.00)
+  )
+}
+
+run_test("TBR focus discovery finds local holiday and future-home areas", {
+  focus <- discover_tbr_focus_areas(
+    tbr_representative_fixture(),
+    latest_mapped_activity_id = "7"
+  )
+  assignments <- focus$assignments
+
+  expect_equal(nrow(dplyr::filter(focus$controls, .data$control_type == "area")), 3L)
+  expect_equal(assignments$cluster_id[assignments$activity_id == "1"], assignments$cluster_id[assignments$activity_id == "2"])
+  expect_equal(assignments$cluster_id[assignments$activity_id == "3"], assignments$cluster_id[assignments$activity_id == "4"])
+  expect_equal(assignments$cluster_id[assignments$activity_id == "5"], assignments$cluster_id[assignments$activity_id == "6"])
+  expect_true(length(unique(assignments$cluster_id[assignments$activity_id %in% c("1", "3", "5")])) == 3L)
+})
+
+run_test("TBR focus membership is independent of input order", {
+  fixture <- tbr_representative_fixture()
+  first <- discover_tbr_focus_areas(fixture, latest_mapped_activity_id = "7")$assignments |>
+    dplyr::select("activity_id", "cluster_id", "control_type", "control_label")
+  second <- discover_tbr_focus_areas(
+    dplyr::slice_sample(fixture, prop = 1),
+    latest_mapped_activity_id = "7"
+  )$assignments |>
+    dplyr::select("activity_id", "cluster_id", "control_type", "control_label")
+
+  expect_equal(first, second)
+})
+
+run_test("TBR focus controls cap isolated one-off adventures", {
+  isolated <- tibble(
+    activity_id = as.character(1:8),
+    start_datetime_local = as.POSIXct("2026-01-01", tz = "Europe/London") +
+      seq_len(8) * 86400,
+    latitude = seq(10, 80, by = 10),
+    longitude = seq(-140, 140, length.out = 8)
+  )
+  focus <- discover_tbr_focus_areas(
+    isolated,
+    max_outlier_controls = 3L,
+    latest_mapped_activity_id = "8"
+  )
+
+  expect_equal(nrow(focus$controls), 3L)
+  expect_true(all(focus$controls$control_type == "outlier"))
+  expect_equal(sum(is.na(focus$assignments$control_type)), 5L)
+})
+
+run_test("TBR clustering distance parameter has predictable effects", {
+  nearby <- tibble(
+    activity_id = c("1", "2"),
+    start_datetime_local = as.POSIXct(c("2026-01-01", "2026-01-02")),
+    latitude = c(51.5, 51.5),
+    longitude = c(-0.1, 0.2)
+  )
+  narrow <- discover_tbr_focus_areas(
+    nearby,
+    distance_km = 15,
+    max_outlier_controls = 0L
+  )
+  broad <- discover_tbr_focus_areas(
+    nearby,
+    distance_km = 30,
+    max_outlier_controls = 0L
+  )
+
+  expect_equal(nrow(narrow$controls), 0L)
+  expect_equal(nrow(broad$controls), 1L)
+  expect_true(all(broad$assignments$control_type == "area"))
+})
+
+run_test("TBR route start representative prevents long-route cluster bridging", {
+  activities <- tbr_activity_fixture(3) |>
+    dplyr::mutate(
+      start_datetime_local = as.POSIXct(c("2026-01-01", "2026-01-02", "2026-01-03")),
+      start_date_local = as.Date(c("2026-01-01", "2026-01-02", "2026-01-03"))
+    )
+  streams <- dplyr::bind_rows(
+    tibble(
+      activity_id = "1", sample_index = 1:3,
+      latitude = c(51.50, 48.00, 44.00), longitude = c(-0.10, -0.50, -1.00)
+    ),
+    tibble(
+      activity_id = "2", sample_index = 1:2,
+      latitude = c(51.51, 51.52), longitude = c(-0.11, -0.12)
+    ),
+    tibble(
+      activity_id = "3", sample_index = 1:2,
+      latitude = c(44.01, 44.02), longitude = c(-1.01, -1.02)
+    )
+  )
+  model <- build_tbr_map_model(activities, streams)
+  focus <- discover_tbr_focus_areas(
+    model$representatives,
+    min_cluster_size = 2L,
+    max_outlier_controls = 0L,
+    latest_mapped_activity_id = model$latest_mapped_activity_id
+  )
+
+  expect_equal(model$representatives$latitude[model$representatives$activity_id == "1"], 51.50)
+  expect_equal(nrow(focus$controls), 1L)
+  expect_equal(
+    focus$assignments$cluster_id[focus$assignments$activity_id == "1"],
+    focus$assignments$cluster_id[focus$assignments$activity_id == "2"]
+  )
+})
+
+run_test("invalid TBR routes do not determine focus areas", {
+  activities <- tbr_activity_fixture(2)
+  streams <- dplyr::bind_rows(tbr_stream_fixture("1"), tbr_stream_fixture("2", FALSE))
+  model <- build_tbr_map_model(activities, streams)
+
+  expect_equal(model$representatives$activity_id, "1")
+  expect_equal(names(model$routes), "1")
+})
+
+run_test("TBR viewports contain latest focus and all route geometry", {
+  activities <- tbr_activity_fixture(4)
+  streams <- dplyr::bind_rows(
+    tbr_stream_fixture("1"),
+    tbr_stream_fixture("2") |>
+      dplyr::mutate(latitude = .data$latitude + 0.02),
+    tbr_stream_fixture("3") |>
+      dplyr::mutate(latitude = .data$latitude - 7, longitude = .data$longitude - 1),
+    tbr_stream_fixture("4") |>
+      dplyr::mutate(latitude = .data$latitude - 7.02, longitude = .data$longitude - 1.02)
+  )
+  model <- build_tbr_map_model(activities, streams)
+  latest <- dplyr::filter(model$viewports, .data$kind == "latest")
+  all <- dplyr::filter(model$viewports, .data$kind == "all")
+  areas <- dplyr::filter(model$viewports, .data$kind == "area")
+
+  expect_equal(model$viewports$label[[1]], "Latest")
+  expect_equal(latest$max_zoom, TBR_FOCUS_LATEST_MAX_ZOOM)
+  expect_equal(all$max_zoom, TBR_FOCUS_ALL_MAX_ZOOM)
+  expect_equal(nrow(areas), 2L)
+  expect_true(latest$south <= min(streams$latitude[streams$activity_id == "4"]))
+  expect_true(latest$north >= max(streams$latitude[streams$activity_id == "4"]))
+  expect_true(all$south <= min(streams$latitude))
+  expect_true(all$north >= max(streams$latitude))
+  expect_true(all$west <= min(streams$longitude))
+  expect_true(all$east >= max(streams$longitude))
+  for (area_label in areas$label) {
+    assigned_ids <- model$focus_areas$assignments |>
+      dplyr::filter(.data$control_label == area_label) |>
+      dplyr::pull(.data$activity_id)
+    assigned_geometry <- dplyr::filter(
+      streams,
+      as.character(.data$activity_id) %in% assigned_ids
+    )
+    viewport <- dplyr::filter(areas, .data$label == area_label)
+    expect_true(viewport$south <= min(assigned_geometry$latitude))
+    expect_true(viewport$north >= max(assigned_geometry$latitude))
+    expect_true(viewport$west <= min(assigned_geometry$longitude))
+    expect_true(viewport$east >= max(assigned_geometry$longitude))
+  }
+})
+
+run_test("single isolated TBR adventure remains available through Latest", {
+  model <- build_tbr_map_model(
+    tbr_activity_fixture(1),
+    tbr_stream_fixture("1")
+  )
+
+  expect_equal(model$viewports$label, c("Latest", "All adventures"))
+  expect_equal(model$latest_mapped_activity_id, "1")
+})
+
 run_test("TBR map renders historical and highlighted route presentation", {
   withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
   activities <- tbr_activity_fixture(2)
@@ -1188,6 +1364,30 @@ run_test("TBR map renders historical and highlighted route presentation", {
   expect_equal(weights, c(2, 4))
   expect_true(grepl("Latest mapped adventure", control, fixed = TRUE))
   expect_true(grepl("https://www.strava.com/activities/2", latest_popup, fixed = TRUE))
+  expect_equal(sum(methods == "addPolylines"), 2L)
+  expect_true(length(map$jsHooks$render) == 1L)
+  hook <- map$jsHooks$render[[1]]
+  expect_true(grepl("fitBounds", hook$code, fixed = TRUE))
+  expect_true(grepl("tbr-focus-control", hook$code, fixed = TRUE))
+  expect_true(!grepl("removeLayer", hook$code, fixed = TRUE))
+  expect_equal(hook$data$viewports[[1]]$label, "Latest")
+  expect_equal(tail(hook$data$viewports, 1)[[1]]$label, "All adventures")
+  expect_equal(hook$data$padding, TBR_FOCUS_VIEWPORT_PADDING_PX)
+})
+
+run_test("TBR focus controls survive static widget serialization", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+  map <- draw_tbr_adventure_map(
+    tbr_activity_fixture(2),
+    dplyr::bind_rows(tbr_stream_fixture("1"), tbr_stream_fixture("2"))
+  )
+  output <- tempfile(fileext = ".html")
+  htmlwidgets::saveWidget(map, output, selfcontained = FALSE)
+  rendered <- paste(readLines(output, warn = FALSE), collapse = "\n")
+
+  expect_true(grepl("tbr-focus-control", rendered, fixed = TRUE))
+  expect_true(grepl("All adventures", rendered, fixed = TRUE))
+  expect_true(grepl("fitBounds", rendered, fixed = TRUE))
 })
 
 run_test("TBR popup escapes activity names and preserves metadata", {
