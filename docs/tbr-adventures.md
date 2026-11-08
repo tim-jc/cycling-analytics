@@ -45,14 +45,17 @@ the current local month are marked as future rather than zero-activity months.
 
 ## Adventure map
 
-The map retains the CARTO Voyager basemap. Historical routes are light and the
-most recent adventure with usable geometry is highlighted. If the newest
+The map retains the CARTO Voyager basemap. Historical routes use a moderately
+visible muted blue line so the cumulative family-adventure network remains
+readable and repeated routes become more prominent through overplotting. The
+most recent adventure uses a darker, wider line, is added last, and therefore
+remains visually distinct on top. If the newest
 adventure has no usable GPS, the label says `Latest mapped adventure` and the
 unmapped count remains visible rather than misrepresenting the older route as
 the newest adventure.
 
 The initial viewport fits that latest mapped adventure rather than the complete
-history. Map controls provide `Latest`, automatically discovered `Area N`
+history. Map controls provide `Latest`, automatically discovered locality
 views, a bounded number of recent `One-off N` views, and `All adventures`.
 These controls only change the viewport: every route, popup and route style
 remains loaded and unchanged.
@@ -80,9 +83,23 @@ The explicit initial parameters in `tbr_functions.R` are:
 - 24-pixel viewport padding;
 - maximum zoom 14 for Latest, 12 for areas and 10 for All adventures.
 
-Clusters are labelled `Area 1`, `Area 2`, and so on in order of their earliest
-adventure. No reverse geocoding or external location lookup is used. A single
-isolated latest adventure remains available through `Latest`; up to three other
+Each focus area is represented for labelling by the coordinate-wise median of
+its member ride-start representatives. The coordinate is rounded to three
+decimal places before lookup, which is sufficient for a broad locality label,
+avoids exposing a precise start point, and makes cache reuse stable. This
+presentation-only representative does not alter clustering or viewport bounds.
+
+At render time, the existing optional reverse-geocoding path resolves these
+representatives to broad, recognisable locality names. Labels prefer borough,
+city district, municipality, town, city, county, state district, then state;
+street, postcode and small neighbourhood fields are deliberately excluded.
+Duplicate names receive deterministic numeric suffixes. The lookup is batched,
+uses the existing process-local coordinate cache, and is performed server-side;
+the rendered browser does not contact a geocoder. If lookup is unavailable or
+does not return a suitable broad place, the original deterministic `Area N`
+label remains, so map rendering never depends on geocoding.
+
+A single isolated latest adventure remains available through `Latest`; up to three other
 recent isolated adventures receive individual `One-off N` controls. Older
 isolated adventures remain present and clickable in `All adventures`, avoiding
 both dozens of buttons and one misleading combined outlier viewport.

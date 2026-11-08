@@ -188,7 +188,8 @@ build_ytd_stats <- function(activities, reference_date = Sys.Date()) {
 }
 
 POSITION_GEOCODE_FIELDS <- c(
-  "hamlet", "village", "town", "suburb", "neighbourhood", "city"
+  "borough", "city_district", "municipality", "town", "city", "county",
+  "state_district", "state", "village", "suburb", "neighbourhood", "hamlet"
 )
 
 .position_geocode_cache <- new.env(parent = emptyenv())

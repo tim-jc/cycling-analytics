@@ -9,6 +9,17 @@ TBR_FOCUS_VIEWPORT_PADDING_PX <- 24L
 TBR_FOCUS_LATEST_MAX_ZOOM <- 14L
 TBR_FOCUS_AREA_MAX_ZOOM <- 12L
 TBR_FOCUS_ALL_MAX_ZOOM <- 10L
+TBR_FOCUS_GEOCODE_DECIMALS <- 3L
+TBR_FOCUS_LOCALITY_FIELDS <- c(
+  "borough", "city_district", "municipality", "town", "city", "county",
+  "state_district", "state"
+)
+TBR_HISTORICAL_ROUTE_COLOR <- "#466B88"
+TBR_HISTORICAL_ROUTE_WEIGHT <- 2.5
+TBR_HISTORICAL_ROUTE_OPACITY <- 0.50
+TBR_LATEST_ROUTE_COLOR <- "#17324D"
+TBR_LATEST_ROUTE_WEIGHT <- 4.5
+TBR_LATEST_ROUTE_OPACITY <- 1
 
 empty_tbr_activities <- function() {
   tibble::tibble(
@@ -505,6 +516,137 @@ discover_tbr_focus_areas <- function(
   )
 }
 
+tbr_focus_area_representatives <- function(focus_areas, representatives) {
+  area_controls <- focus_areas$controls |>
+    dplyr::filter(.data$control_type == "area")
+  if (nrow(area_controls) == 0L) {
+    return(tibble::tibble(
+      fallback_label = character(),
+      latitude = double(),
+      longitude = double()
+    ))
+  }
+
+  purrr::map_dfr(area_controls$control_label, function(control_label) {
+    activity_ids <- focus_areas$assignments |>
+      dplyr::filter(
+        .data$control_type == "area",
+        .data$control_label == .env$control_label
+      ) |>
+      dplyr::pull(.data$activity_id)
+    members <- representatives |>
+      dplyr::filter(.data$activity_id %in% activity_ids)
+    if (nrow(members) == 0L) {
+      return(tibble::tibble(
+        fallback_label = control_label,
+        latitude = NA_real_,
+        longitude = NA_real_
+      ))
+    }
+    tibble::tibble(
+      fallback_label = control_label,
+      latitude = round(
+        stats::median(members$latitude),
+        TBR_FOCUS_GEOCODE_DECIMALS
+      ),
+      longitude = round(
+        stats::median(members$longitude),
+        TBR_FOCUS_GEOCODE_DECIMALS
+      )
+    )
+  })
+}
+
+tbr_locality_label <- function(geocoded_row, fallback_label) {
+  for (field in TBR_FOCUS_LOCALITY_FIELDS) {
+    if (!field %in% names(geocoded_row)) next
+    value <- trimws(as.character(geocoded_row[[field]][[1]]))
+    if (!is.na(value) && nzchar(value)) return(value)
+  }
+  fallback_label
+}
+
+disambiguate_tbr_locality_labels <- function(labels) {
+  totals <- table(labels)
+  occurrences <- ave(seq_along(labels), labels, FUN = seq_along)
+  ifelse(
+    as.integer(totals[labels]) > 1L,
+    paste0(labels, " (", occurrences, ")"),
+    labels
+  )
+}
+
+label_tbr_focus_areas <- function(
+  model,
+  geocoder = getOption(
+    "cycling_analytics_position_geocoder",
+    default_position_reverse_geocoder
+  ),
+  cache = .position_geocode_cache,
+  warn = default_position_geocode_warning
+) {
+  positions <- tbr_focus_area_representatives(
+    model$focus_areas,
+    model$representatives
+  )
+  if (nrow(positions) == 0L) return(model)
+
+  geocoded <- geocode_position_extremities(
+    positions,
+    geocoder = geocoder,
+    cache = cache,
+    warn = function(...) {
+      warn(
+        paste(
+          "TBR focus-area locality lookup failed;",
+          "generic area labels will be used."
+        )
+      )
+    }
+  )
+  labels <- vapply(
+    seq_len(nrow(geocoded)),
+    function(index) {
+      tbr_locality_label(
+        geocoded[index, , drop = FALSE],
+        geocoded$fallback_label[[index]]
+      )
+    },
+    character(1)
+  ) |>
+    disambiguate_tbr_locality_labels()
+  label_map <- stats::setNames(labels, geocoded$fallback_label)
+
+  model$focus_areas$assignments <- model$focus_areas$assignments |>
+    dplyr::mutate(
+      control_label = dplyr::case_when(
+        !is.na(.data$control_type) &
+          .data$control_type == "area" &
+          .data$control_label %in% names(label_map) ~
+          unname(label_map[.data$control_label]),
+        TRUE ~ .data$control_label
+      )
+    )
+  model$focus_areas$controls <- model$focus_areas$controls |>
+    dplyr::mutate(
+      control_label = dplyr::case_when(
+        !is.na(.data$control_type) &
+          .data$control_type == "area" &
+          .data$control_label %in% names(label_map) ~
+          unname(label_map[.data$control_label]),
+        TRUE ~ .data$control_label
+      )
+    )
+  model$viewports <- build_tbr_viewports(
+    model$routes,
+    model$latest_mapped_activity_id,
+    model$focus_areas
+  )
+  model$focus_geocode <- geocoded |>
+    dplyr::mutate(display_label = labels)
+  model
+}
+
 tbr_route_geometry <- function(route) {
   dplyr::bind_rows(route$segments) |>
     dplyr::arrange(.data$sample_index)
@@ -723,7 +865,17 @@ tbr_route_popup <- function(activity) {
   )
 }
 
-draw_tbr_adventure_map <- function(activities, streams) {
+draw_tbr_adventure_map <- function(
+  activities,
+  streams,
+  geocode_focus_labels = TRUE,
+  geocoder = getOption(
+    "cycling_analytics_position_geocoder",
+    default_position_reverse_geocoder
+  ),
+  geocode_cache = .position_geocode_cache,
+  geocode_warn = default_position_geocode_warning
+) {
   if (nrow(activities) == 0L) {
     return(latest_ride_notice("No family adventures are available yet."))
   }
@@ -732,6 +884,14 @@ draw_tbr_adventure_map <- function(activities, streams) {
     return(latest_ride_notice(
       "Our adventures are recorded, but none currently has usable route geometry."
     ))
+  }
+  if (isTRUE(geocode_focus_labels)) {
+    model <- label_tbr_focus_areas(
+      model,
+      geocoder = geocoder,
+      cache = geocode_cache,
+      warn = geocode_warn
+    )
   }
 
   map <- leaflet::leaflet() |>
@@ -754,9 +914,12 @@ draw_tbr_adventure_map <- function(activities, streams) {
         data = segment,
         lng = ~longitude,
         lat = ~latitude,
-        color = if (is_latest_mapped) "#17324D" else "#89A7BF",
-        weight = if (is_latest_mapped) 4 else 2,
-        opacity = if (is_latest_mapped) 0.95 else 0.28,
+        color = if (is_latest_mapped) TBR_LATEST_ROUTE_COLOR else
+          TBR_HISTORICAL_ROUTE_COLOR,
+        weight = if (is_latest_mapped) TBR_LATEST_ROUTE_WEIGHT else
+          TBR_HISTORICAL_ROUTE_WEIGHT,
+        opacity = if (is_latest_mapped) TBR_LATEST_ROUTE_OPACITY else
+          TBR_HISTORICAL_ROUTE_OPACITY,
         popup = popup,
         layerId = paste0("tbr-", activity_id, "-", segment_index)
       )

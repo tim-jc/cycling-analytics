@@ -1346,11 +1346,143 @@ run_test("single isolated TBR adventure remains available through Latest", {
   expect_equal(model$latest_mapped_activity_id, "1")
 })
 
+run_test("TBR locality labels prefer broad recognisable places", {
+  expect_equal(
+    tbr_locality_label(
+      tibble(
+        borough = "Richmond upon Thames",
+        town = "London",
+        city = "London"
+      ),
+      "Area 1"
+    ),
+    "Richmond upon Thames"
+  )
+  expect_equal(
+    tbr_locality_label(
+      tibble(borough = NA_character_, municipality = "Mimizan", town = "Parentis-en-Born"),
+      "Area 2"
+    ),
+    "Mimizan"
+  )
+  expect_equal(
+    tbr_locality_label(
+      tibble(borough = NA_character_, municipality = NA_character_, town = "Parentis-en-Born"),
+      "Area 2"
+    ),
+    "Parentis-en-Born"
+  )
+  expect_equal(
+    tbr_locality_label(
+      tibble(suburb = "A small suburb", hamlet = "A tiny hamlet"),
+      "Area 3"
+    ),
+    "Area 3"
+  )
+})
+
+run_test("duplicate TBR locality labels are deterministic and distinguishable", {
+  expect_equal(
+    disambiguate_tbr_locality_labels(c("London", "Mimizan", "London")),
+    c("London (1)", "Mimizan", "London (2)")
+  )
+})
+
+run_test("TBR focus geocoding uses median member starts without changing clusters", {
+  fixture <- tbr_representative_fixture()
+  focus <- discover_tbr_focus_areas(
+    fixture,
+    latest_mapped_activity_id = "7"
+  )
+  model <- list(
+    routes = list(),
+    latest_mapped_activity_id = "7",
+    representatives = fixture,
+    focus_areas = focus,
+    viewports = tibble()
+  )
+  positions <- tbr_focus_area_representatives(focus, fixture)
+  before <- focus$assignments |>
+    dplyr::select("activity_id", "cluster_id")
+  cache <- new.env(parent = emptyenv())
+  calls <- 0L
+  geocoder <- function(locations) {
+    calls <<- calls + 1L
+    places <- c("London", "Mimizan", "Manchester")
+    dplyr::bind_cols(locations, tibble(borough = places[seq_len(nrow(locations))]))
+  }
+
+  labelled <- label_tbr_focus_areas(model, geocoder = geocoder, cache = cache)
+  labelled_again <- label_tbr_focus_areas(model, geocoder = geocoder, cache = cache)
+
+  expect_equal(positions$latitude, c(51.51, 44.02, 53.015))
+  expect_equal(positions$longitude, c(-0.11, -1.015, -2.01))
+  expect_equal(
+    labelled$focus_areas$assignments |>
+      dplyr::select("activity_id", "cluster_id"),
+    before
+  )
+  expect_equal(
+    labelled$focus_areas$controls$control_label,
+    c("London", "Mimizan", "Manchester")
+  )
+  expect_equal(labelled_again$focus_areas$controls$control_label, labelled$focus_areas$controls$control_label)
+  expect_equal(calls, 1L)
+})
+
+run_test("TBR focus locality failure preserves generic labels and viewport bounds", {
+  activities <- tbr_activity_fixture(4)
+  streams <- dplyr::bind_rows(
+    tbr_stream_fixture("1"),
+    tbr_stream_fixture("2") |> dplyr::mutate(latitude = .data$latitude + 0.02),
+    tbr_stream_fixture("3") |> dplyr::mutate(latitude = .data$latitude - 7, longitude = .data$longitude - 1),
+    tbr_stream_fixture("4") |> dplyr::mutate(latitude = .data$latitude - 7.02, longitude = .data$longitude - 1.02)
+  )
+  model <- build_tbr_map_model(activities, streams)
+  warnings <- character()
+  labelled <- label_tbr_focus_areas(
+    model,
+    geocoder = function(...) stop("Could not resolve host", call. = FALSE),
+    cache = new.env(parent = emptyenv()),
+    warn = function(message, ...) warnings <<- c(warnings, message)
+  )
+
+  expect_equal(labelled$focus_areas$controls$control_label, model$focus_areas$controls$control_label)
+  expect_equal(
+    dplyr::select(labelled$viewports, -"label"),
+    dplyr::select(model$viewports, -"label")
+  )
+  expect_equal(length(warnings), 1L)
+  expect_true(grepl("generic area labels", warnings[[1]], fixed = TRUE))
+  expect_true(!grepl("51.", warnings[[1]], fixed = TRUE))
+})
+
+run_test("TBR map renders geocoded focus labels without changing route layers", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+  map <- draw_tbr_adventure_map(
+    tbr_activity_fixture(2),
+    dplyr::bind_rows(tbr_stream_fixture("1"), tbr_stream_fixture("2")),
+    geocoder = function(locations) dplyr::bind_cols(
+      locations,
+      tibble(borough = rep("Richmond upon Thames", nrow(locations)))
+    ),
+    geocode_cache = new.env(parent = emptyenv())
+  )
+  methods <- leaflet_call_methods(map)
+
+  expect_equal(sum(methods == "addPolylines"), 2L)
+  expect_true(any(vapply(
+    map$jsHooks$render[[1]]$data$viewports,
+    function(viewport) identical(viewport$label, "Richmond upon Thames"),
+    logical(1)
+  )))
+})
+
 run_test("TBR map renders historical and highlighted route presentation", {
   withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
   activities <- tbr_activity_fixture(2)
   streams <- dplyr::bind_rows(tbr_stream_fixture("1"), tbr_stream_fixture("2"))
-  map <- draw_tbr_adventure_map(activities, streams)
+  map <- draw_tbr_adventure_map(activities, streams, geocode_focus_labels = FALSE)
   methods <- leaflet_call_methods(map)
   lines <- map$x$calls[methods == "addPolylines"]
   colours <- vapply(lines, function(call) call$args[[4]]$color, character(1))
@@ -1360,8 +1492,13 @@ run_test("TBR map renders historical and highlighted route presentation", {
 
   expect_true(inherits(map, "leaflet"))
   expect_true(grepl("rastertiles/voyager_labels_under", map$x$calls[[1]]$args[[1]], fixed = TRUE))
-  expect_equal(colours, c("#89A7BF", "#17324D"))
-  expect_equal(weights, c(2, 4))
+  expect_equal(colours, c(TBR_HISTORICAL_ROUTE_COLOR, TBR_LATEST_ROUTE_COLOR))
+  expect_equal(weights, c(TBR_HISTORICAL_ROUTE_WEIGHT, TBR_LATEST_ROUTE_WEIGHT))
+  expect_equal(
+    vapply(lines, function(call) call$args[[4]]$opacity, numeric(1)),
+    c(TBR_HISTORICAL_ROUTE_OPACITY, TBR_LATEST_ROUTE_OPACITY)
+  )
+  expect_true(grepl("tbr-2-", lines[[length(lines)]]$args[[2]], fixed = TRUE))
   expect_true(grepl("Latest mapped adventure", control, fixed = TRUE))
   expect_true(grepl("https://www.strava.com/activities/2", latest_popup, fixed = TRUE))
   expect_equal(sum(methods == "addPolylines"), 2L)
@@ -1379,7 +1516,8 @@ run_test("TBR focus controls survive static widget serialization", {
   withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
   map <- draw_tbr_adventure_map(
     tbr_activity_fixture(2),
-    dplyr::bind_rows(tbr_stream_fixture("1"), tbr_stream_fixture("2"))
+    dplyr::bind_rows(tbr_stream_fixture("1"), tbr_stream_fixture("2")),
+    geocode_focus_labels = FALSE
   )
   output <- tempfile(fileext = ".html")
   htmlwidgets::saveWidget(map, output, selfcontained = FALSE)
