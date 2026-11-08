@@ -41,11 +41,15 @@ dashboard_stage("Load data", {
 
   activity_streams <- get_activity_streams(con)
 
-  tbr_streams <- get_tbr_streams(con)
+  tbr_activities <- get_tbr_activities(con)
 
-  tbr_activities <- tbr_streams |> 
-    select(activity_id:moving_time_seconds) |> 
-    distinct()
+  tbr_streams <- get_tbr_position_streams(con, tbr_activities$activity_id)
+
+  tbr_summary <- build_tbr_summary(tbr_activities)
+
+  tbr_calendar <- build_tbr_calendar(tbr_activities)
+
+  tbr_milestones <- build_tbr_milestones(tbr_activities)
 
   ytd_stats <- build_ytd_stats(activities)
 
@@ -113,6 +117,37 @@ dashboard_stage("Load data", {
   font-size: 17px;
   font-weight: 600;
   padding: 12px 15px;
+}
+
+.tbr-milestones {
+  display: grid;
+  gap: 8px;
+  padding: 8px 4px;
+}
+
+.tbr-milestone {
+  align-items: baseline;
+  background: #F5F8FA;
+  border-left: 4px solid #89A7BF;
+  color: #17324D;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 92px 1fr;
+  padding: 9px 12px;
+}
+
+.tbr-milestone-date {
+  color: #667784;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.tbr-map-status {
+  background: rgba(255, 255, 255, 0.92);
+  border-left: 4px solid #17324D;
+  color: #17324D;
+  line-height: 1.35;
+  padding: 7px 10px;
 }
 ```
 
@@ -472,37 +507,69 @@ Row
 draw_map(ytd_streams)
 ```
 
-tbr
+TBR | Our Adventures
 ===================================== 
 
-Row
+Row {data-height=115}
 -----------------------------------------------------------------------
 
-### tbr rides
+### Adventures
 
 ```{r}
-valueBox(nrow(tbr_activities), color = "#EDF0F1")
+valueBox(tbr_summary$adventures, icon = "fa-bicycle", color = "#EDF0F1")
 ```
 
-### Total tbr miles
+### Miles together
 
 ```{r}
-
-peaks_units |> filter(metric_name == "distance") |> mutate(value = sum(tbr_activities$distance_metres) * multiplier, value = str_glue("{round(value, digits = 1)} {units}")) |> pull(value) |> valueBox(color = "#EDF0F1")
-
+valueBox(
+  sprintf("%.1f mi", tbr_summary$distance_miles),
+  icon = "fa-road",
+  color = "#EDF0F1"
+)
 ```
 
-### Longest tbr ride
+### Time riding together
 
 ```{r}
-peaks_units |> filter(metric_name == "distance") |> mutate(value = max(tbr_activities$distance_metres) * multiplier, value = str_glue("{round(value, digits = 1)} {units}")) |> pull(value) |> valueBox(color = "#EDF0F1")
+valueBox(
+  format_tbr_duration(tbr_summary$moving_time_seconds),
+  icon = "fa-clock-o",
+  color = "#EDF0F1"
+)
 ```
 
-Row
+### First adventure
+
+```{r}
+valueBox(
+  if (is.na(tbr_summary$first_adventure_date)) "—" else
+    format(tbr_summary$first_adventure_date, "%d %b %Y"),
+  icon = "fa-calendar",
+  color = "#EDF0F1"
+)
+```
+
+Row {data-height=480}
 -----------------------------------------------------------------------
 
-### tbr tracks
+### Our adventure map
 
 ```{r}
-draw_map(tbr_streams)
+draw_tbr_adventure_map(tbr_activities, tbr_streams)
+```
+
+Row {data-height=330}
+-----------------------------------------------------------------------
+
+### Adventure calendar {data-width=7}
+
+```{r}
+draw_tbr_calendar(tbr_calendar)
+```
+
+### Milestones {data-width=5}
+
+```{r}
+render_tbr_milestones(tbr_milestones)
 ```

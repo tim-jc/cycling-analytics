@@ -12,6 +12,7 @@ Sys.setenv(TZ = "Europe/London")
 source("db/db.R")
 source("dashboard_functions.R")
 source("latest_ride_functions.R")
+source("tbr_functions.R")
 source("runtime_helpers.R")
 source("reports/ride-summary/R/ride_report_model.R")
 source("reports/ride-summary/R/ride_report_components.R")
@@ -783,7 +784,8 @@ run_test("Latest Ride does not qualify a short Ride by duration", {
 run_test("activity queries and selectors do not depend on trainer flag", {
   production_functions <- c(
     paste(deparse(body(get_activities)), collapse = "\n"),
-    paste(deparse(body(get_tbr_streams)), collapse = "\n"),
+    paste(deparse(body(get_tbr_activities)), collapse = "\n"),
+    paste(deparse(body(get_tbr_position_streams)), collapse = "\n"),
     paste(deparse(body(get_latest_significant_ride)), collapse = "\n"),
     paste(deparse(body(select_latest_significant_activity)), collapse = "\n"),
     paste(deparse(body(get_latest_ride_summary)), collapse = "\n")
@@ -968,6 +970,249 @@ run_test("Latest Ride map eligibility is independent of sport type", {
     sum(leaflet_call_methods(outdoor) == "addPolylines"),
     sum(leaflet_call_methods(virtual) == "addPolylines")
   )
+})
+
+tbr_activity_fixture <- function(count = 4L) {
+  tibble(
+    activity_id = as.character(seq_len(count)),
+    activity_name = rep(c("TBR", "Morning Tbr adventure"), length.out = count),
+    sport_type = rep("Ride", count),
+    gear_id = rep(c("bike-a", "bike-b"), length.out = count),
+    start_datetime_local = as.POSIXct(
+      "2026-01-01 09:00:00",
+      tz = "Europe/London"
+    ) + (seq_len(count) - 1L) * 86400,
+    start_date_local = as.Date("2026-01-01") + seq_len(count) - 1L,
+    distance_metres = seq_len(count) * TBR_METRES_PER_MILE,
+    moving_time_seconds = seq_len(count) * 600
+  )
+}
+
+tbr_stream_fixture <- function(activity_id = "1", valid = TRUE) {
+  if (valid) {
+    tibble(
+      activity_id = activity_id,
+      sample_index = 1:3,
+      latitude = c(51.50, 51.51, 51.52),
+      longitude = c(-0.12, -0.11, -0.10)
+    )
+  } else {
+    tibble(
+      activity_id = activity_id,
+      sample_index = 1:3,
+      latitude = c(NA_real_, Inf, 91),
+      longitude = c(NA_real_, -0.1, -0.1)
+    )
+  }
+}
+
+run_test("TBR selection is case-insensitive and finds longer names", {
+  fixture <- tbr_activity_fixture(4) |>
+    dplyr::mutate(activity_name = c("TBR", "tbr shops", "Family TbR loop", "Morning ride"))
+  selected <- select_tbr_activities(fixture)
+
+  expect_equal(selected$activity_id, c("1", "2", "3"))
+})
+
+run_test("TBR selection includes only Ride activities", {
+  fixture <- tbr_activity_fixture(3) |>
+    dplyr::mutate(sport_type = c("Ride", "VirtualRide", "Run"))
+  selected <- select_tbr_activities(fixture)
+
+  expect_equal(selected$activity_id, "1")
+})
+
+run_test("TBR membership is independent of gear identity", {
+  fixture <- tbr_activity_fixture(3) |>
+    dplyr::mutate(gear_id = c("usual-bike", "other-bike", NA_character_))
+
+  expect_equal(nrow(select_tbr_activities(fixture)), 3L)
+})
+
+run_test("TBR selection is deterministic and one row per activity", {
+  fixture <- dplyr::bind_rows(
+    tbr_activity_fixture(3),
+    tbr_activity_fixture(3)[2, ]
+  ) |>
+    dplyr::slice(c(4, 3, 1, 2))
+  selected <- select_tbr_activities(fixture)
+
+  expect_equal(selected$activity_id, c("1", "2", "3"))
+})
+
+run_test("TBR summary includes adventures independently of streams", {
+  fixture <- tbr_activity_fixture(3)
+  summary <- build_tbr_summary(fixture)
+
+  expect_equal(summary$adventures, 3L)
+  expect_equal(summary$distance_miles, 6)
+  expect_equal(summary$moving_time_seconds, 3600)
+  expect_equal(summary$first_adventure_date, as.Date("2026-01-01"))
+  expect_equal(summary$longest_distance_miles, 3)
+})
+
+run_test("TBR summary handles missing measurements and empty history", {
+  fixture <- tbr_activity_fixture(2) |>
+    dplyr::mutate(
+      distance_metres = c(NA_real_, TBR_METRES_PER_MILE),
+      moving_time_seconds = c(NA_real_, 600)
+    )
+  summary <- build_tbr_summary(fixture)
+  empty <- build_tbr_summary(empty_tbr_activities())
+
+  expect_equal(summary$adventures, 2L)
+  expect_equal(summary$distance_miles, 1)
+  expect_equal(summary$moving_time_seconds, 600)
+  expect_equal(empty$adventures, 0L)
+  expect_equal(empty$distance_miles, 0)
+  expect_true(is.na(empty$first_adventure_date))
+})
+
+run_test("TBR calendar fills months across multiple years", {
+  fixture <- tbr_activity_fixture(3) |>
+    dplyr::mutate(
+      start_datetime_local = as.POSIXct(c(
+        "2025-12-31 23:30:00", "2026-01-01 00:30:00", "2026-01-20 10:00:00"
+      ), tz = "Europe/London"),
+      start_date_local = as.Date(c("2025-12-31", "2026-01-01", "2026-01-20")),
+      distance_metres = c(1, 2, 3) * TBR_METRES_PER_MILE
+    )
+  calendar <- build_tbr_calendar(fixture, as.Date("2026-03-15"))
+  january <- dplyr::filter(calendar, .data$year == 2026, .data$month == 1)
+  february <- dplyr::filter(calendar, .data$year == 2026, .data$month == 2)
+  april <- dplyr::filter(calendar, .data$year == 2026, .data$month == 4)
+
+  expect_equal(nrow(calendar), 24L)
+  expect_equal(january$adventures, 2L)
+  expect_equal(january$distance_miles, 5)
+  expect_equal(february$adventures, 0L)
+  expect_true(!february$is_future)
+  expect_true(april$is_future)
+})
+
+run_test("TBR calendar has an explicit empty model", {
+  expect_equal(nrow(build_tbr_calendar(empty_tbr_activities())), 0L)
+})
+
+run_test("TBR milestones use stable activity ordering", {
+  fixture <- tbr_activity_fixture(10) |>
+    dplyr::mutate(
+      start_datetime_local = as.POSIXct("2026-02-01 10:00:00", tz = "Europe/London"),
+      start_date_local = as.Date("2026-02-01"),
+      activity_id = as.character(rev(seq_len(10)))
+    )
+  first <- build_tbr_milestones(fixture)
+  second <- build_tbr_milestones(dplyr::slice_sample(fixture, prop = 1))
+
+  expect_equal(first, second)
+  expect_true("10 adventures together" %in% first$label)
+})
+
+run_test("TBR mileage milestones use the first exact threshold crossing", {
+  fixture <- tbr_activity_fixture(3) |>
+    dplyr::mutate(distance_metres = c(40, 60, 200) * TBR_METRES_PER_MILE)
+  milestones <- build_tbr_milestones(fixture)
+  hundred <- dplyr::filter(milestones, .data$label == "100 miles together")
+  two_fifty <- dplyr::filter(milestones, .data$label == "250 miles together")
+
+  expect_equal(hundred$milestone_date, as.Date("2026-01-02"))
+  expect_equal(two_fifty$milestone_date, as.Date("2026-01-03"))
+  expect_true(!"500 miles together" %in% milestones$label)
+})
+
+run_test("TBR longest and most-active month rules are deterministic", {
+  fixture <- tbr_activity_fixture(4) |>
+    dplyr::mutate(
+      start_datetime_local = as.POSIXct(c(
+        "2026-01-01 10:00:00", "2026-01-02 10:00:00",
+        "2026-02-01 10:00:00", "2026-02-02 10:00:00"
+      ), tz = "Europe/London"),
+      start_date_local = as.Date(c(
+        "2026-01-01", "2026-01-02", "2026-02-01", "2026-02-02"
+      )),
+      distance_metres = c(5, 5, 4, 7) * TBR_METRES_PER_MILE
+    )
+  milestones <- build_tbr_milestones(fixture)
+
+  expect_true(any(grepl("Longest adventure — 7.0 miles", milestones$label, fixed = TRUE)))
+  expect_true(any(grepl("Most active month — February 2026", milestones$label, fixed = TRUE)))
+})
+
+run_test("TBR route preparation excludes invalid and degenerate geometry", {
+  invalid <- prepare_tbr_route(tbr_stream_fixture(valid = FALSE))
+  repeated <- prepare_tbr_route(tibble(
+    activity_id = "1", sample_index = 1:3,
+    latitude = rep(51.5, 3), longitude = rep(-0.1, 3)
+  ))
+
+  expect_true(!invalid$eligible)
+  expect_true(!repeated$eligible)
+})
+
+run_test("TBR route preparation does not bridge missing coordinates", {
+  streams <- tibble(
+    activity_id = "1", sample_index = 1:5,
+    latitude = c(51.50, 51.51, NA, 51.60, 51.61),
+    longitude = c(-0.20, -0.19, NA, -0.10, -0.09)
+  )
+  prepared <- prepare_tbr_route(streams)
+
+  expect_true(prepared$eligible)
+  expect_equal(length(prepared$line_segments), 2L)
+})
+
+run_test("TBR map model highlights latest mapped rather than latest activity", {
+  activities <- tbr_activity_fixture(3)
+  streams <- dplyr::bind_rows(tbr_stream_fixture("1"), tbr_stream_fixture("2"))
+  model <- build_tbr_map_model(activities, streams)
+
+  expect_equal(model$latest_mapped_activity_id, "2")
+  expect_equal(model$unmapped, 1L)
+})
+
+run_test("TBR map renders historical and highlighted route presentation", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+  activities <- tbr_activity_fixture(2)
+  streams <- dplyr::bind_rows(tbr_stream_fixture("1"), tbr_stream_fixture("2"))
+  map <- draw_tbr_adventure_map(activities, streams)
+  methods <- leaflet_call_methods(map)
+  lines <- map$x$calls[methods == "addPolylines"]
+  colours <- vapply(lines, function(call) call$args[[4]]$color, character(1))
+  weights <- vapply(lines, function(call) call$args[[4]]$weight, numeric(1))
+  control <- map$x$calls[[which(methods == "addControl")]]$args[[1]]
+  latest_popup <- lines[[2]]$args[[5]]
+
+  expect_true(inherits(map, "leaflet"))
+  expect_true(grepl("rastertiles/voyager_labels_under", map$x$calls[[1]]$args[[1]], fixed = TRUE))
+  expect_equal(colours, c("#89A7BF", "#17324D"))
+  expect_equal(weights, c(2, 4))
+  expect_true(grepl("Latest mapped adventure", control, fixed = TRUE))
+  expect_true(grepl("https://www.strava.com/activities/2", latest_popup, fixed = TRUE))
+})
+
+run_test("TBR popup escapes activity names and preserves metadata", {
+  activity <- tbr_activity_fixture(1) |>
+    dplyr::mutate(activity_name = "TBR <script>alert(1)</script>")
+  popup <- tbr_route_popup(activity)
+
+  expect_true(!grepl("<script>", popup, fixed = TRUE))
+  expect_true(grepl("&lt;script&gt;", popup, fixed = TRUE))
+  expect_true(grepl("1.0 miles", popup, fixed = TRUE))
+  expect_true(grepl("https://www.strava.com/activities/1", popup, fixed = TRUE))
+})
+
+run_test("TBR map has clear empty and no-GPS states", {
+  no_history <- draw_tbr_adventure_map(
+    empty_tbr_activities(),
+    empty_tbr_position_streams()
+  )
+  no_gps <- draw_tbr_adventure_map(
+    tbr_activity_fixture(1),
+    empty_tbr_position_streams()
+  )
+
+  expect_true(grepl("No family adventures", as.character(no_history), fixed = TRUE))
+  expect_true(grepl("none currently has usable route", as.character(no_gps), fixed = TRUE))
 })
 
 run_test("a qualifying Latest Ride remains usable without streams", {

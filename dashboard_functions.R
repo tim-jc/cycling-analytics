@@ -95,30 +95,6 @@ get_activity_streams <- function(
   )
 }
 
-# tbr streams
-get_tbr_streams <- function(con) {
-  DBI::dbGetQuery(
-    conn = con,
-    "SELECT
-      a.activity_id,
-      a.sport_type,
-      a.start_date_local,
-      a.distance_metres, 
-      a.moving_time_seconds, 
-      s.latitude,
-      s.longitude,
-      s.sample_index AS stream_order
-    FROM
-      cycling_platform_silver.activities a
-    INNER JOIN cycling_platform_silver.activity_streams s
-      ON a.activity_id = s.activity_id
-    WHERE
-      a.activity_name like '%tbr%'
-    ORDER BY a.activity_id, s.sample_index"
-  )
-}
-
-
 # Assemble YTD stats
 build_ytd_stats <- function(activities, reference_date = Sys.Date()) {
   activities |>

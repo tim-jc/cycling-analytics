@@ -121,7 +121,8 @@ production_r_files <- c(
   "db/db.R",
   "runtime_helpers.R",
   "dashboard_functions.R",
-  "latest_ride_functions.R"
+  "latest_ride_functions.R",
+  "tbr_functions.R"
 )
 for (relative_path in production_r_files) {
   tryCatch(

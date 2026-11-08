@@ -579,6 +579,7 @@ main <- function() {
     source(file.path(project_root, "runtime_helpers.R"))
     source(file.path(project_root, "dashboard_functions.R"))
     source(file.path(project_root, "latest_ride_functions.R"))
+    source(file.path(project_root, "tbr_functions.R"))
 
     # environment -----------------------------------------------------------
 
