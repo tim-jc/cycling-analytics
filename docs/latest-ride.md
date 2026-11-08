@@ -54,9 +54,16 @@ Raw-layer dependency and performs no local reconstruction of canonical facts.
 
 ## Graceful fallbacks
 
-- Missing elevation, power, heart-rate, or GPS streams affect only their own
-  component.
-- Indoor rides show a route-not-applicable message.
+- Missing elevation, power, heart-rate, or usable position streams affect only
+  their own component.
+- Route maps are eligible by position data rather than activity type. Both
+  outdoor and virtual rides are mapped when they contain at least two distinct
+  samples with paired, finite, in-range latitude and longitude values. Virtual
+  maps are labelled `Virtual route` so the coordinates are not presented as
+  evidence of physical travel.
+- Missing and malformed position samples break the displayed route into
+  separate segments; the map does not draw a line across those gaps. The
+  dashboard does not apply jump, speed, or distance-quality thresholds.
 - Missing Gold efforts show an unavailable message rather than estimated
   efforts.
 - No lap table is synthesized because the platform does not yet publish a

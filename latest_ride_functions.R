@@ -356,38 +356,108 @@ draw_latest_ride_trace <- function(streams, metric, label, units, colour) {
     )
 }
 
-draw_latest_ride_map <- function(streams, sport_type) {
-  if (identical(sport_type, "VirtualRide")) {
-    return(latest_ride_notice(
-      "Route map is not applicable to this indoor ride."
+prepare_latest_ride_route <- function(streams) {
+  required <- c("sample_index", "latitude", "longitude")
+  if (!all(required %in% names(streams)) || nrow(streams) == 0L) {
+    return(list(
+      eligible = FALSE,
+      points = tibble::tibble(),
+      line_segments = list()
     ))
   }
-  if (!isTRUE(latest_ride_stream_availability(streams)[["gps"]])) {
-    return(latest_ride_notice("GPS coordinates are unavailable for this ride."))
-  }
-  route <- streams |>
-    dplyr::filter(!is.na(.data$latitude), !is.na(.data$longitude))
 
-  leaflet::leaflet(route) |>
+  ordered <- streams |>
+    dplyr::arrange(.data$sample_index) |>
+    dplyr::mutate(
+      .valid_position = is.finite(.data$latitude) &
+        is.finite(.data$longitude) &
+        dplyr::between(.data$latitude, -90, 90) &
+        dplyr::between(.data$longitude, -180, 180),
+      .sample_gap = dplyr::row_number() > 1L &
+        .data$sample_index != dplyr::lag(.data$sample_index) + 1L,
+      # Invalid samples increment the run before being removed. This prevents
+      # Leaflet from drawing a fabricated line across a missing/invalid gap.
+      .route_segment = cumsum(!.data$.valid_position | .data$.sample_gap)
+    )
+
+  points <- ordered |>
+    dplyr::filter(.data$.valid_position) |>
+    dplyr::select(-dplyr::all_of(c(".valid_position", ".sample_gap")))
+
+  distinct_positions <- points |>
+    dplyr::distinct(.data$latitude, .data$longitude)
+  eligible <- nrow(points) >= 2L && nrow(distinct_positions) >= 2L
+
+  line_segments <- if (eligible) {
+    points |>
+      dplyr::group_split(.data$.route_segment) |>
+      purrr::keep(~ nrow(.x) >= 2L)
+  } else {
+    list()
+  }
+
+  list(
+    eligible = eligible,
+    points = points,
+    line_segments = line_segments
+  )
+}
+
+draw_latest_ride_map <- function(streams, sport_type = NA_character_) {
+  route <- prepare_latest_ride_route(streams)
+  if (!isTRUE(route$eligible)) {
+    return(latest_ride_notice("A usable route is unavailable for this ride."))
+  }
+
+  map <- leaflet::leaflet(route$points) |>
     leaflet::addTiles(
       carto_basemap_tile_url("positron"),
       attribution = paste(
         '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
         '&copy; <a href="https://carto.com/attributions">CARTO</a>'
       )
-    ) |>
-    leaflet::addPolylines(
+    )
+
+  for (segment in route$line_segments) {
+    map <- leaflet::addPolylines(
+      map,
+      data = segment,
       lng = ~longitude,
       lat = ~latitude,
       color = "#17324D",
       weight = 2,
       opacity = 0.9
-    ) |>
+    )
+  }
+
+  if (length(route$line_segments) == 0L) {
+    map <- leaflet::addCircleMarkers(
+      map,
+      data = route$points,
+      lng = ~longitude,
+      lat = ~latitude,
+      radius = 2,
+      stroke = FALSE,
+      fillColor = "#17324D",
+      fillOpacity = 0.9
+    )
+  }
+
+  if (identical(sport_type, "VirtualRide")) {
+    map <- leaflet::addControl(
+      map,
+      html = "Virtual route",
+      position = "topright",
+      className = "latest-ride-virtual-route-label"
+    )
+  }
+
+  map |>
     leaflet::fitBounds(
-      min(route$longitude),
-      min(route$latitude),
-      max(route$longitude),
-      max(route$latitude)
+      min(route$points$longitude),
+      min(route$points$latitude),
+      max(route$points$longitude),
+      max(route$points$latitude)
     )
 }
 

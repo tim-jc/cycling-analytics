@@ -816,6 +816,160 @@ run_test("missing one Latest Ride stream does not suppress other traces", {
   expect_true(availability[["gps"]])
 })
 
+latest_ride_route_fixture <- function(
+  latitude = c(51.5, 51.51, 51.52),
+  longitude = c(-0.12, -0.11, -0.10),
+  sample_index = seq_along(latitude)
+) {
+  tibble(sample_index, latitude, longitude)
+}
+
+leaflet_call_methods <- function(map) {
+  vapply(map$x$calls, `[[`, character(1), "method")
+}
+
+run_test("valid outdoor Latest Ride route renders with existing presentation", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+  map <- draw_latest_ride_map(latest_ride_route_fixture(), "Ride")
+  methods <- leaflet_call_methods(map)
+  line_options <- map$x$calls[[which(methods == "addPolylines")]]$args[[4]]
+
+  expect_true(inherits(map, "leaflet"))
+  expect_equal(methods, c("addTiles", "addPolylines"))
+  expect_true(grepl("light_all", map$x$calls[[1]]$args[[1]], fixed = TRUE))
+  expect_equal(line_options$color, "#17324D")
+  expect_equal(line_options$weight, 2)
+  expect_equal(line_options$opacity, 0.9)
+  expect_equal(map$x$limits$lat, c(51.5, 51.52))
+  expect_equal(map$x$limits$lng, c(-0.12, -0.10))
+})
+
+run_test("valid VirtualRide route renders and is labelled virtual", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+  map <- draw_latest_ride_map(latest_ride_route_fixture(), "VirtualRide")
+  methods <- leaflet_call_methods(map)
+  control <- map$x$calls[[which(methods == "addControl")]]
+
+  expect_true(inherits(map, "leaflet"))
+  expect_true("addPolylines" %in% methods)
+  expect_equal(control$args[[1]], "Virtual route")
+  expect_equal(
+    control$args[[4]],
+    "latest-ride-virtual-route-label"
+  )
+})
+
+run_test("VirtualRide without positions shows a route notice", {
+  result <- draw_latest_ride_map(
+    latest_ride_route_fixture(NA_real_, NA_real_),
+    "VirtualRide"
+  )
+  expect_true(inherits(result, "shiny.tag"))
+  expect_true(grepl(
+    "A usable route is unavailable for this ride.",
+    as.character(result),
+    fixed = TRUE
+  ))
+})
+
+run_test("latitude and longitude on different rows do not form a route", {
+  prepared <- prepare_latest_ride_route(latest_ride_route_fixture(
+    latitude = c(51.5, NA_real_),
+    longitude = c(NA_real_, -0.1)
+  ))
+  expect_true(!prepared$eligible)
+  expect_equal(nrow(prepared$points), 0L)
+})
+
+run_test("non-finite Latest Ride coordinates are excluded", {
+  prepared <- prepare_latest_ride_route(latest_ride_route_fixture(
+    latitude = c(51.5, Inf, 51.6),
+    longitude = c(-0.2, -0.15, -0.1)
+  ))
+  expect_true(prepared$eligible)
+  expect_equal(prepared$points$sample_index, c(1L, 3L))
+})
+
+run_test("out-of-range Latest Ride coordinates are excluded", {
+  prepared <- prepare_latest_ride_route(latest_ride_route_fixture(
+    latitude = c(51.5, 91, 51.6, -91),
+    longitude = c(-0.2, -0.15, -0.1, 181)
+  ))
+  expect_true(prepared$eligible)
+  expect_equal(prepared$points$sample_index, c(1L, 3L))
+})
+
+run_test("a single valid Latest Ride coordinate does not qualify", {
+  prepared <- prepare_latest_ride_route(latest_ride_route_fixture(
+    latitude = 51.5,
+    longitude = -0.1
+  ))
+  expect_true(!prepared$eligible)
+})
+
+run_test("repeated identical Latest Ride coordinates do not qualify", {
+  prepared <- prepare_latest_ride_route(latest_ride_route_fixture(
+    latitude = rep(51.5, 3),
+    longitude = rep(-0.1, 3)
+  ))
+  expect_true(!prepared$eligible)
+})
+
+run_test("invalid Latest Ride samples split rather than bridge route lines", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+  streams <- latest_ride_route_fixture(
+    latitude = c(51.50, 51.51, NA, 51.60, 51.61),
+    longitude = c(-0.20, -0.19, NA, -0.10, -0.09),
+    sample_index = c(5L, 4L, 3L, 2L, 1L)
+  )
+  prepared <- prepare_latest_ride_route(streams)
+  map <- draw_latest_ride_map(streams, "Ride")
+
+  expect_true(prepared$eligible)
+  expect_equal(prepared$points$sample_index, c(1L, 2L, 4L, 5L))
+  expect_equal(length(prepared$line_segments), 2L)
+  expect_equal(sum(leaflet_call_methods(map) == "addPolylines"), 2L)
+})
+
+run_test("missing Latest Ride sample rows split route lines", {
+  streams <- latest_ride_route_fixture(
+    latitude = c(51.50, 51.51, 51.60, 51.61),
+    longitude = c(-0.20, -0.19, -0.10, -0.09),
+    sample_index = c(1L, 2L, 4L, 5L)
+  )
+  prepared <- prepare_latest_ride_route(streams)
+
+  expect_true(prepared$eligible)
+  expect_equal(length(prepared$line_segments), 2L)
+})
+
+run_test("isolated valid route points are shown without a fabricated line", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+  streams <- latest_ride_route_fixture(
+    latitude = c(51.5, NA, 51.6),
+    longitude = c(-0.2, NA, -0.1)
+  )
+  map <- draw_latest_ride_map(streams, "Ride")
+  methods <- leaflet_call_methods(map)
+
+  expect_true("addCircleMarkers" %in% methods)
+  expect_true(!"addPolylines" %in% methods)
+})
+
+run_test("Latest Ride map eligibility is independent of sport type", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+  streams <- latest_ride_route_fixture()
+  outdoor <- draw_latest_ride_map(streams, "Ride")
+  virtual <- draw_latest_ride_map(streams, "VirtualRide")
+
+  expect_true(inherits(outdoor, "leaflet"))
+  expect_true(inherits(virtual, "leaflet"))
+  expect_equal(
+    sum(leaflet_call_methods(outdoor) == "addPolylines"),
+    sum(leaflet_call_methods(virtual) == "addPolylines")
+  )
+})
+
 run_test("a qualifying Latest Ride remains usable without streams", {
   selected <- select_latest_significant_activity(latest_ride_fixture |> dplyr::slice(2)) |>
     dplyr::mutate(activity_name = "Fixture ride")
