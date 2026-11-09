@@ -11,6 +11,20 @@ Rscript -e "install.packages('renv')"
 Rscript -e "renv::restore()"
 ```
 
+## Activity Inspector
+
+The standalone, read-only Activity Inspector loads one canonical Silver
+activity and supports linked map/timeline sample inspection plus inclusive
+boundary selection:
+
+```sh
+Rscript -e "shiny::runApp('apps/activity-inspector', launch.browser = TRUE)"
+```
+
+It uses the repository's existing MariaDB and `CARTO_BASEMAP_API_KEY`
+environment configuration. See [docs/activity-inspector.md](docs/activity-inspector.md)
+for the workflow and data-handling contract.
+
 Configure the database and dashboard environment variables in a local `.Renviron` file or through your shell/CI environment. `.Renviron` is intentionally ignored by git.
 
 CARTO raster maps also require the shared runtime variable:

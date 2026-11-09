@@ -13,6 +13,10 @@ source("db/db.R")
 source("dashboard_functions.R")
 source("latest_ride_functions.R")
 source("tbr_functions.R")
+source("apps/activity-inspector/R/data_access.R")
+source("apps/activity-inspector/R/inspection_model.R")
+source("apps/activity-inspector/R/map.R")
+source("apps/activity-inspector/R/timeline.R")
 source("runtime_helpers.R")
 source("reports/ride-summary/R/ride_report_model.R")
 source("reports/ride-summary/R/ride_report_components.R")
@@ -1588,6 +1592,248 @@ run_test("Latest Ride highlights favour activity and strong power rankings", {
   expect_true(grepl("2nd fastest 50+ mile ride this year", rendered, fixed = TRUE))
   expect_true(grepl("1st best 30 min power this year", rendered, fixed = TRUE))
   expect_true(!grepl("12th", rendered, fixed = TRUE))
+})
+
+inspector_activity_fixture <- function(activity_id = "123") {
+  tibble(
+    activity_id = activity_id,
+    activity_name = "Unfamiliar coastal ride",
+    sport_type = "Ride",
+    activity_type = "Ride",
+    timezone_name = "Europe/London",
+    start_datetime_utc = as.POSIXct("2026-08-01 07:00:00", tz = "UTC"),
+    start_datetime_local = as.POSIXct("2026-08-01 08:00:00", tz = "Europe/London"),
+    start_date_local = as.Date("2026-08-01"),
+    start_time_local = "08:00:00",
+    distance_metres = 10000,
+    moving_time_seconds = 1800L,
+    elapsed_time_seconds = 2000L,
+    elevation_gain_metres = 100,
+    has_streams = TRUE,
+    transformed_at = as.POSIXct("2026-08-02", tz = "UTC")
+  )
+}
+
+inspector_stream_fixture <- function(
+  sample_index = 1:6,
+  latitude = 51.5 + seq_along(sample_index) / 1000,
+  longitude = -0.1 + seq_along(sample_index) / 1000
+) {
+  tibble(
+    activity_id = "123",
+    sample_index = as.integer(sample_index),
+    time_seconds = c(0, 1, 1, 3, NA, 5)[seq_along(sample_index)],
+    distance_metres = seq_along(sample_index) * 10,
+    latitude = latitude,
+    longitude = longitude,
+    altitude_metres = 20 + seq_along(sample_index),
+    velocity_smooth_metres_per_second = 5,
+    heartrate_bpm = NA_integer_,
+    cadence_rpm = 80L,
+    watts = 180L,
+    temperature_celsius = NA_integer_,
+    is_moving = TRUE,
+    grade_smooth_percent = 1
+  )
+}
+
+run_test("Activity Inspector validates activity IDs", {
+  expect_equal(validate_inspector_activity_id(" 123456 "), "123456")
+  expect_error(validate_inspector_activity_id("12x"), "digits only")
+  expect_error(validate_inspector_activity_id(""), "digits only")
+  expect_error(validate_inspector_activity_id(c("1", "2")), "digits only")
+})
+
+run_test("Activity Inspector uses parameterised activity-scoped SELECT queries", {
+  calls <- list()
+  query <- function(connection, statement, params) {
+    calls[[length(calls) + 1L]] <<- list(statement = statement, params = params)
+    data.frame()
+  }
+  fetch_inspector_activity(NULL, "123", get_query = query)
+  fetch_inspector_streams(NULL, "123", get_query = query)
+
+  expect_true(all(vapply(calls, function(call) grepl("WHERE activity_id = ?", call$statement, fixed = TRUE), logical(1))))
+  expect_true(all(vapply(calls, function(call) identical(call$params, list("123")), logical(1))))
+  expect_true(grepl("ORDER BY sample_index", calls[[2]]$statement, fixed = TRUE))
+  expect_true(all(!grepl("INSERT|UPDATE|DELETE", vapply(calls, `[[`, character(1), "statement"), ignore.case = TRUE)))
+})
+
+run_test("Activity Inspector closes its connection and handles a missing activity", {
+  disconnected <- FALSE
+  query_count <- 0L
+  result <- load_inspector_activity(
+    "123",
+    connection_factory = function() structure(list(), class = "fixture_connection"),
+    disconnect = function(connection) disconnected <<- TRUE,
+    get_query = function(connection, statement, params) {
+      query_count <<- query_count + 1L
+      data.frame()
+    }
+  )
+
+  expect_true(disconnected)
+  expect_equal(query_count, 1L)
+  expect_equal(nrow(result$activity), 0L)
+  expect_equal(nrow(result$streams), 0L)
+})
+
+run_test("Activity Inspector preserves missing fields and duplicate elapsed times", {
+  streams <- inspector_stream_fixture() |>
+    dplyr::select("activity_id", "sample_index", "time_seconds", "latitude", "longitude")
+  model <- prepare_inspection_model(inspector_activity_fixture(), streams)
+
+  expect_equal(model$streams$sample_index, 1:6)
+  expect_equal(model$streams$time_seconds[2:3], c(1, 1))
+  expect_true(all(is.na(model$streams$watts)))
+  expect_equal(nrow(model$metrics), 0L)
+})
+
+run_test("Activity Inspector preserves an activity with no stream rows", {
+  model <- prepare_inspection_model(inspector_activity_fixture(), data.frame())
+
+  expect_equal(nrow(model$activity), 1L)
+  expect_equal(nrow(model$streams), 0L)
+  expect_equal(length(model$route$segments), 0L)
+  expect_equal(nrow(model$metrics), 0L)
+})
+
+run_test("Activity Inspector splits routes at invalid coordinates and index gaps", {
+  streams <- inspector_stream_fixture(
+    sample_index = c(1L, 2L, 4L, 5L, 6L, 7L),
+    latitude = c(51.50, 51.51, 51.52, NA, 51.54, 91),
+    longitude = c(-0.10, -0.09, -0.08, -0.07, -0.06, -0.05)
+  )
+  route <- prepare_inspector_route(streams)
+
+  expect_equal(length(route$segments), 1L)
+  expect_equal(route$segments[[1]]$sample_index, c(1L, 2L))
+  expect_equal(route$points$sample_index, c(1L, 2L, 4L, 6L))
+})
+
+run_test("Activity Inspector retains repeated coordinates and reports spatial ambiguity", {
+  streams <- inspector_stream_fixture(
+    latitude = c(51.5, 51.5, 51.51, 51.52, 51.53, 51.54),
+    longitude = c(-0.1, -0.1, -0.09, -0.08, -0.07, -0.06)
+  )
+  model <- prepare_inspection_model(inspector_activity_fixture(), streams)
+  nearest <- nearest_inspector_sample(model, 51.5, -0.1)
+
+  expect_equal(nearest$sample_index, 1L)
+  expect_true(nearest$ambiguous)
+  expect_equal(nearest$candidate_indices, c(1L, 2L))
+})
+
+run_test("Activity Inspector range selection is inclusive and gap-aware", {
+  model <- prepare_inspection_model(
+    inspector_activity_fixture(),
+    inspector_stream_fixture(sample_index = c(10L, 20L, 30L, 40L, 50L, 60L))
+  )
+  selected <- inspector_range_streams(model, 20L, 50L)
+
+  expect_equal(selected$sample_index, c(20L, 30L, 40L, 50L))
+  expect_equal(inspector_neighbour_index(model, 30L, "previous"), 20L)
+  expect_equal(inspector_neighbour_index(model, 30L, "next"), 40L)
+  expect_error(validate_inspector_range(model, 50L, 20L), "must not exceed")
+  expect_error(validate_inspector_range(model, 21L, 50L), "existing canonical")
+})
+
+run_test("Activity Inspector permits missing-GPS boundaries and formats clipboard output", {
+  streams <- inspector_stream_fixture()
+  streams$latitude[c(2, 5)] <- NA_real_
+  streams$longitude[c(2, 5)] <- NA_real_
+  model <- prepare_inspection_model(inspector_activity_fixture(), streams)
+
+  expect_equal(nrow(inspector_range_streams(model, 2L, 5L)), 4L)
+  expect_equal(
+    inspector_clipboard_text(model, 2L, 5L),
+    "ride_start_sample_index = 2\nride_end_sample_index = 5"
+  )
+})
+
+run_test("Activity Inspector map and timeline preserve canonical sample identity", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+  model <- prepare_inspection_model(inspector_activity_fixture(), inspector_stream_fixture())
+  map <- build_inspector_map(model)
+  timeline <- build_inspector_timeline(model, "distance_metres", current_index = 4L)
+  built_timeline <- plotly::plotly_build(timeline)
+  map_methods <- leaflet_call_methods(map)
+
+  expect_true("addPolylines" %in% map_methods)
+  expect_equal(as.integer(built_timeline$x$data[[1]]$customdata), model$streams$sample_index)
+  expect_equal(built_timeline$x$data[[1]]$type, "scattergl")
+  expect_equal(built_timeline$x$layout$shapes[[1]]$x0, 4L)
+})
+
+run_test("Activity Inspector handles forty thousand full-resolution samples", {
+  sample_count <- 40000L
+  streams <- tibble(
+    activity_id = "123",
+    sample_index = seq_len(sample_count),
+    time_seconds = seq_len(sample_count) - 1L,
+    distance_metres = seq_len(sample_count) * 5,
+    latitude = 51.5 + seq_len(sample_count) / 1e7,
+    longitude = -0.1 + seq_len(sample_count) / 1e7,
+    altitude_metres = 20 + sin(seq_len(sample_count) / 100),
+    watts = 180L
+  )
+  elapsed <- system.time({
+    model <- prepare_inspection_model(inspector_activity_fixture(), streams)
+    timeline <- build_inspector_timeline(model, "distance_metres")
+    built_timeline <- plotly::plotly_build(timeline)
+  })[["elapsed"]]
+
+  expect_equal(nrow(model$streams), sample_count)
+  expect_equal(nrow(model$route$points), sample_count)
+  expect_equal(built_timeline$x$data[[1]]$type, "scattergl")
+  expect_true(elapsed < 5)
+})
+
+run_test("Activity Inspector server supports load inspect and boundary workflow", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+  app_environment <- new.env(parent = globalenv())
+  sys.source("apps/activity-inspector/app.R", envir = app_environment)
+  fixture_loader <- function(activity_id) {
+    list(
+      activity = inspector_activity_fixture(activity_id),
+      streams = inspector_stream_fixture() |>
+        dplyr::mutate(activity_id = activity_id)
+    )
+  }
+
+  server_under_test <- function(input, output, session) {
+    state <- app_environment$activity_inspector_server(
+      input,
+      output,
+      session,
+      loader = fixture_loader
+    )
+  }
+
+  shiny::testServer(
+    server_under_test,
+    {
+      session$setInputs(activity_id = "123", load_activity = 1)
+      session$flushReact()
+      expect_equal(state$current_index, 1L)
+      expect_equal(nrow(state$model$streams), 6L)
+
+      session$setInputs(activity_map_shape_click = list(lat = 51.504, lng = -0.096))
+      session$flushReact()
+      expect_equal(state$current_index, 4L)
+
+      session$setInputs(set_start = 1)
+      session$setInputs(current_next = 1)
+      session$setInputs(set_end = 1)
+      session$flushReact()
+      expect_equal(state$start_index, 4L)
+      expect_equal(state$end_index, 5L)
+
+      session$setInputs(end_previous = 1)
+      session$flushReact()
+      expect_equal(state$end_index, 4L)
+    }
+  )
 })
 
 run_test("missing database configuration fails before connection retries", {

@@ -25,6 +25,12 @@ required_files <- c(
   "runtime_helpers.R",
   "dashboard_functions.R",
   "latest_ride_functions.R",
+  "apps/activity-inspector/app.R",
+  "apps/activity-inspector/R/data_access.R",
+  "apps/activity-inspector/R/inspection_model.R",
+  "apps/activity-inspector/R/map.R",
+  "apps/activity-inspector/R/timeline.R",
+  "apps/activity-inspector/www/inspector.css",
   "renv/activate.R",
   "renv/settings.json",
   "scripts/docker-entrypoint.sh"
@@ -76,6 +82,7 @@ assert_true(
 required_packages <- c(
   "DBI",
   "RMariaDB",
+  "bslib",
   "flexdashboard",
   "glue",
   "htmlwidgets",
@@ -85,6 +92,7 @@ required_packages <- c(
   "plotly",
   "renv",
   "rmarkdown",
+  "shiny",
   "tibble",
   "tidygeocoder",
   "tidyverse"
@@ -122,7 +130,12 @@ production_r_files <- c(
   "runtime_helpers.R",
   "dashboard_functions.R",
   "latest_ride_functions.R",
-  "tbr_functions.R"
+  "tbr_functions.R",
+  "apps/activity-inspector/app.R",
+  "apps/activity-inspector/R/data_access.R",
+  "apps/activity-inspector/R/inspection_model.R",
+  "apps/activity-inspector/R/map.R",
+  "apps/activity-inspector/R/timeline.R"
 )
 for (relative_path in production_r_files) {
   tryCatch(
