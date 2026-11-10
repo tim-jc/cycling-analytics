@@ -20,6 +20,7 @@ assert_true(
 required_files <- c(
   ".Rprofile",
   "render_dashboard.R",
+  "dashboard_identity.R",
   "dashboards/index.Rmd",
   "db/db.R",
   "runtime_helpers.R",
@@ -31,6 +32,13 @@ required_files <- c(
   "apps/activity-inspector/R/map.R",
   "apps/activity-inspector/R/timeline.R",
   "apps/activity-inspector/www/inspector.css",
+  "assets/identity/tokens.css",
+  "assets/identity/symbol-dark.svg",
+  "assets/identity/favicon.svg",
+  "assets/identity/favicon.png",
+  "assets/identity/PROVENANCE.md",
+  "assets/dashboard.css",
+  "assets/dashboard-shell.js",
   "renv/activate.R",
   "renv/settings.json",
   "scripts/docker-entrypoint.sh"
@@ -85,6 +93,7 @@ required_packages <- c(
   "bslib",
   "flexdashboard",
   "glue",
+  "htmltools",
   "htmlwidgets",
   "knitr",
   "leaflet",
@@ -126,6 +135,7 @@ assert_true(
 
 production_r_files <- c(
   "render_dashboard.R",
+  "dashboard_identity.R",
   "db/db.R",
   "runtime_helpers.R",
   "dashboard_functions.R",

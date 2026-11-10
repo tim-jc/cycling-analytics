@@ -1,0 +1,217 @@
+/* Cycling Analytics Navigation Instrument shell. */
+:root {
+  --cycling-navbar-height: 56px;
+}
+
+html,
+body {
+  background: var(--ptg-bg);
+  color: var(--ptg-ink);
+  font-family: var(--ptg-font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  padding-top: var(--cycling-navbar-height);
+}
+
+.navbar.navbar-inverse {
+  min-height: var(--cycling-navbar-height);
+  background: var(--ptg-midnight);
+  background-color: var(--ptg-midnight) !important;
+  border: 0;
+  border-bottom: 1px solid var(--ptg-line);
+  box-shadow: none;
+  padding: 0;
+}
+
+.navbar .container-fluid,
+.navbar .navbar-header,
+.navbar .navbar-logo {
+  min-height: var(--cycling-navbar-height);
+}
+
+.navbar .navbar-logo {
+  height: var(--cycling-navbar-height);
+  margin: 0;
+}
+
+.navbar .ptg-brand {
+  align-items: center;
+  color: var(--ptg-paper);
+  display: inline-flex;
+  font-size: 15px;
+  font-weight: 600;
+  gap: var(--ptg-space-2);
+  height: var(--cycling-navbar-height);
+  letter-spacing: -.045em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.navbar .ptg-brand img {
+  height: 28px;
+  margin: 0;
+  width: 28px;
+}
+
+.navbar .ptg-brand-dot,
+.navbar .ptg-brand-separator {
+  color: var(--ptg-accent);
+}
+
+.navbar .navbar-brand {
+  align-items: center;
+  color: var(--ptg-paper);
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 500;
+  gap: var(--ptg-space-2);
+  height: var(--cycling-navbar-height);
+  letter-spacing: -.02em;
+  line-height: 1;
+  margin-left: var(--ptg-space-3);
+  padding: 0;
+  white-space: nowrap;
+}
+
+.navbar-inverse .navbar-nav > li > a {
+  color: var(--ptg-paper);
+  font-family: var(--ptg-font-sans);
+  line-height: 20px;
+  padding-bottom: 18px;
+  padding-top: 18px;
+}
+
+.navbar-inverse .navbar-nav > .active > a,
+.navbar-inverse .navbar-nav > .active > a:hover,
+.navbar-inverse .navbar-nav > .active > a:focus,
+.navbar.navbar-inverse .navbar-nav > li > a.active,
+.navbar.navbar-inverse .navbar-nav > li > a.active:hover,
+.navbar.navbar-inverse .navbar-nav > li > a.active:focus,
+.navbar-inverse .navbar-nav > li > a:hover,
+.navbar-inverse .navbar-nav > li > a:focus {
+  background: transparent;
+  color: var(--ptg-accent) !important;
+}
+
+.navbar-inverse .navbar-toggle {
+  border-color: var(--ptg-line);
+  margin-bottom: 10px;
+  margin-top: 10px;
+}
+
+.navbar-inverse .navbar-toggle .icon-bar {
+  background-color: var(--ptg-paper);
+}
+
+.navbar-inverse .navbar-toggle:hover,
+.navbar-inverse .navbar-toggle:focus {
+  background: var(--ptg-surface);
+}
+
+.dashboard-page-wrapper,
+.dashboard-page,
+.section.level1 {
+  background: var(--ptg-bg);
+}
+
+.chart-wrapper,
+.nav-tabs-custom,
+.sbframe-commentary {
+  background: var(--ptg-surface);
+  border-color: var(--ptg-line);
+}
+
+.chart-title {
+  border-bottom-color: var(--ptg-line);
+  color: var(--ptg-ink);
+  font-family: var(--ptg-font-sans);
+  font-weight: 500;
+  letter-spacing: -.015em;
+}
+
+.chart-stage {
+  color: var(--ptg-ink);
+}
+
+.value-box {
+  background: var(--ptg-surface) !important;
+  border: 1px solid var(--ptg-line);
+  color: var(--ptg-ink) !important;
+}
+
+.value-box .value,
+.value-box .caption,
+.value-box .icon,
+.value-box a {
+  color: var(--ptg-ink) !important;
+}
+
+a:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--ptg-focus) !important;
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(209, 139, 88, .34);
+}
+
+@media (max-width: 767px) {
+  .navbar .container-fluid,
+  .navbar .navbar-header {
+    display: block;
+    width: 100%;
+  }
+
+  .navbar .ptg-brand {
+    font-size: 14px;
+  }
+
+  .navbar .ptg-brand img {
+    height: 26px;
+    width: 26px;
+  }
+
+  .navbar .navbar-brand {
+    font-size: 13px;
+    margin-left: var(--ptg-space-2);
+  }
+
+  .navbar .navbar-toggle {
+    display: block !important;
+  }
+
+  .navbar-collapse {
+    background: var(--ptg-midnight);
+    border-top-color: var(--ptg-line);
+    clear: both;
+    display: none !important;
+    width: 100%;
+  }
+
+  .navbar-collapse.in,
+  .navbar-collapse.show {
+    display: block !important;
+  }
+
+  .navbar-collapse .navbar-nav {
+    display: block;
+    margin: 0;
+  }
+
+  .navbar-inverse .navbar-nav > li > a {
+    padding: 10px 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

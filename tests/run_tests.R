@@ -10,6 +10,7 @@ suppressPackageStartupMessages({
 Sys.setenv(TZ = "Europe/London")
 
 source("db/db.R")
+source("dashboard_identity.R")
 source("dashboard_functions.R")
 source("latest_ride_functions.R")
 source("tbr_functions.R")
@@ -192,6 +193,46 @@ run_test("generated dashboard site is ignored by Git", {
   ))
 
   expect_equal(status, 0L)
+})
+
+run_test("dashboard identity dependency packages every local asset", {
+  dependency <- dashboard_identity_dependency(normalizePath("."))
+  dependency_root <- withr::local_tempdir()
+  copied <- htmltools::copyDependencyToDir(dependency, dependency_root)
+  copied_root <- unname(copied$src[["file"]])
+
+  expected_files <- c(
+    "identity/tokens.css",
+    "identity/symbol-dark.svg",
+    "identity/favicon.svg",
+    "identity/favicon.png",
+    "identity/PROVENANCE.md",
+    "dashboard.css",
+    "dashboard-shell.js"
+  )
+
+  expect_true(all(file.exists(file.path(copied_root, expected_files))))
+  expect_equal(copied$name, DASHBOARD_IDENTITY_NAME)
+  expect_equal(copied$version, DASHBOARD_IDENTITY_VERSION)
+})
+
+run_test("dashboard identity dependency uses local favicon and brand paths", {
+  dependency <- dashboard_identity_dependency(normalizePath("."))
+  dependency_html <- as.character(htmltools::renderDependencies(
+    list(dependency),
+    srcType = "file"
+  ))
+  shell_source <- paste(
+    readLines("assets/dashboard-shell.js", warn = FALSE),
+    collapse = "\n"
+  )
+
+  expect_true(grepl("identity/favicon.png", dependency_html, fixed = TRUE))
+  expect_true(grepl("identity/favicon.svg", dependency_html, fixed = TRUE))
+  expect_true(grepl("https://pastthegrid.uk/", shell_source, fixed = TRUE))
+  expect_true(grepl("Past the Grid", shell_source, fixed = TRUE))
+  expect_true(grepl("Cycling Analytics", shell_source, fixed = TRUE))
+  expect_true(!grepl("https://pastthegrid.uk/assets/", shell_source, fixed = TRUE))
 })
 
 run_test("container logging defaults to stdout without a log file", {

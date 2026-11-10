@@ -1,0 +1,29 @@
+/*
+ * Past the Grid identity tokens adopted by Cycling Analytics.
+ * Canonical source and revision: see PROVENANCE.md.
+ */
+:root {
+  --ptg-midnight: #172630;
+  --ptg-paper: #F1EFE7;
+  --ptg-sage: #667C73;
+  --ptg-copper: #D18B58;
+  --ptg-survey-blue: #8BA9B7;
+
+  --ptg-bg: var(--ptg-midnight);
+  --ptg-ink: var(--ptg-paper);
+  --ptg-muted: #B5C6CC;
+  --ptg-accent: #E2A577;
+  --ptg-line: #435965;
+  --ptg-surface: #1C303B;
+  --ptg-focus: #E2A577;
+
+  --ptg-font-sans: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+  --ptg-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  --ptg-space-1: .25rem;
+  --ptg-space-2: .5rem;
+  --ptg-space-3: .75rem;
+  --ptg-space-4: 1rem;
+  --ptg-space-6: 1.5rem;
+  --ptg-space-8: 2rem;
+}
