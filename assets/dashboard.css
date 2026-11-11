@@ -100,8 +100,8 @@ body {
   margin-top: 10px;
 }
 
-.navbar-inverse .navbar-toggle .icon-bar {
-  background-color: var(--ptg-paper);
+.navbar-inverse .navbar-toggle > .icon-bar:last-child {
+  background-color: transparent;
 }
 
 .navbar-inverse .navbar-toggle:hover,
