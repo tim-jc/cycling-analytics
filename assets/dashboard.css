@@ -94,14 +94,33 @@ body {
 }
 
 .navbar-inverse .navbar-toggle {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
   border-color: var(--ptg-line);
   float: right;
-  margin-bottom: 10px;
-  margin-top: 10px;
+  height: 44px;
+  margin-bottom: 8px;
+  margin-top: 8px;
+  padding: 0;
+  position: relative;
+  width: 44px;
 }
 
 .navbar-inverse .navbar-toggle > .icon-bar:last-child {
-  background-color: transparent;
+  background: var(--ptg-paper) !important;
+  background-image: none !important;
+  border-radius: 1px;
+  box-shadow:
+    0 -7px 0 var(--ptg-paper),
+    0 7px 0 var(--ptg-paper);
+  display: block;
+  height: 2px;
+  left: 9px;
+  margin: 0;
+  position: absolute;
+  top: 20px;
+  width: 24px;
 }
 
 .navbar-inverse .navbar-toggle:hover,

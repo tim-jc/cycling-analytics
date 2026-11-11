@@ -258,7 +258,7 @@ run_test("dashboard navbar owns the Coastal reference geometry", {
   expect_true(grepl('aria-current=\\"page\\"', shell_source))
 })
 
-run_test("mobile navigation retains white strokes without a solid fill", {
+run_test("mobile navigation draws a compact framework-independent hamburger", {
   css_source <- paste(
     readLines("assets/dashboard.css", warn = FALSE),
     collapse = "\n"
@@ -269,7 +269,11 @@ run_test("mobile navigation retains white strokes without a solid fill", {
     css_source,
     fixed = TRUE
   ))
-  expect_true(grepl("background-color: transparent", css_source, fixed = TRUE))
+  expect_true(grepl("background-image: none !important", css_source, fixed = TRUE))
+  expect_true(grepl("box-shadow:", css_source, fixed = TRUE))
+  expect_true(grepl("height: 44px", css_source, fixed = TRUE))
+  expect_true(grepl("width: 44px", css_source, fixed = TRUE))
+  expect_true(grepl("-webkit-appearance: none", css_source, fixed = TRUE))
   expect_true(!grepl(
     ".navbar-toggle .icon-bar {\n  background-color: var(--ptg-paper)",
     css_source,
