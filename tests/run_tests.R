@@ -235,6 +235,49 @@ run_test("dashboard identity dependency uses local favicon and brand paths", {
   expect_true(!grepl("https://pastthegrid.uk/assets/", shell_source, fixed = TRUE))
 })
 
+run_test("dashboard navbar owns the Coastal reference geometry", {
+  css_source <- paste(
+    readLines("assets/dashboard.css", warn = FALSE),
+    collapse = "\n"
+  )
+  shell_source <- paste(
+    readLines("assets/dashboard-shell.js", warn = FALSE),
+    collapse = "\n"
+  )
+
+  expect_true(grepl("--cycling-navbar-height: 60px", css_source, fixed = TRUE))
+  expect_true(grepl(".navbar .navbar-logo", css_source, fixed = TRUE))
+  expect_true(grepl("display: block", css_source, fixed = TRUE))
+  expect_true(grepl("float: left", css_source, fixed = TRUE))
+  expect_true(grepl("float: right", css_source, fixed = TRUE))
+  expect_true(grepl("height: 30px", css_source, fixed = TRUE))
+  expect_true(grepl("width: 30px", css_source, fixed = TRUE))
+  expect_true(!grepl("padding-top: 18px", css_source, fixed = TRUE))
+  expect_true(!grepl("padding-bottom: 18px", css_source, fixed = TRUE))
+  expect_true(grepl("logo.replaceChildren(brand)", shell_source, fixed = TRUE))
+  expect_true(grepl('aria-current=\\"page\\"', shell_source))
+})
+
+run_test("dashboard shell constrains mobile flex content and wrapping", {
+  css_source <- paste(
+    readLines("assets/dashboard.css", warn = FALSE),
+    collapse = "\n"
+  )
+
+  expect_true(grepl(
+    ".dashboard-column-orientation > .dashboard-column",
+    css_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl("min-width: 0", css_source, fixed = TRUE))
+  expect_true(grepl("#latest-ride #ride-overview .value", css_source, fixed = TRUE))
+  expect_true(grepl("overflow-wrap: anywhere", css_source, fixed = TRUE))
+  expect_true(grepl("white-space: normal", css_source, fixed = TRUE))
+  expect_true(grepl("#map .dashboard-row", css_source, fixed = TRUE))
+  expect_true(grepl("overflow-x: clip", css_source, fixed = TRUE))
+  expect_true(!grepl("body {\n  overflow-x: hidden", css_source, fixed = TRUE))
+})
+
 run_test("container logging defaults to stdout without a log file", {
   withr::local_envvar(c(
     DASHBOARD_LOG = NA,

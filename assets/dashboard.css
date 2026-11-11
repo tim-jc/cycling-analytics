@@ -1,6 +1,6 @@
 /* Cycling Analytics Navigation Instrument shell. */
 :root {
-  --cycling-navbar-height: 56px;
+  --cycling-navbar-height: 60px;
 }
 
 html,
@@ -26,12 +26,13 @@ body {
 }
 
 .navbar .container-fluid,
-.navbar .navbar-header,
-.navbar .navbar-logo {
+.navbar .navbar-header {
   min-height: var(--cycling-navbar-height);
 }
 
 .navbar .navbar-logo {
+  display: block;
+  float: left;
   height: var(--cycling-navbar-height);
   margin: 0;
 }
@@ -50,9 +51,9 @@ body {
 }
 
 .navbar .ptg-brand img {
-  height: 28px;
+  height: 30px;
   margin: 0;
-  width: 28px;
+  width: 30px;
 }
 
 .navbar .ptg-brand-dot,
@@ -75,12 +76,9 @@ body {
   white-space: nowrap;
 }
 
-.navbar-inverse .navbar-nav > li > a {
+.navbar.navbar-inverse .navbar-nav > li > a {
   color: var(--ptg-paper);
   font-family: var(--ptg-font-sans);
-  line-height: 20px;
-  padding-bottom: 18px;
-  padding-top: 18px;
 }
 
 .navbar-inverse .navbar-nav > .active > a,
@@ -97,6 +95,7 @@ body {
 
 .navbar-inverse .navbar-toggle {
   border-color: var(--ptg-line);
+  float: right;
   margin-bottom: 10px;
   margin-top: 10px;
 }
@@ -148,6 +147,17 @@ body {
   color: var(--ptg-ink) !important;
 }
 
+#latest-ride #ride-overview .value {
+  font-size: 22px;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+#latest-ride #ride-overview .caption {
+  margin-bottom: 0;
+}
+
 a:focus-visible,
 button:focus-visible,
 [tabindex]:focus-visible {
@@ -159,7 +169,27 @@ button:focus-visible,
   background: rgba(209, 139, 88, .34);
 }
 
+#latest-ride .dashboard-column,
+#latest-ride .dashboard-row,
+#map .dashboard-column,
+#map .dashboard-row,
+#tbr .dashboard-column,
+#tbr .dashboard-row {
+  overflow-x: clip;
+}
+
 @media (max-width: 767px) {
+  .dashboard-column-orientation > .dashboard-column {
+    min-width: 0;
+    width: 100%;
+  }
+
+  #latest-ride #route,
+  #map #tracks,
+  #tbr #our-adventure-map {
+    overflow: clip;
+  }
+
   .navbar .container-fluid,
   .navbar .navbar-header {
     display: block;
@@ -171,8 +201,8 @@ button:focus-visible,
   }
 
   .navbar .ptg-brand img {
-    height: 26px;
-    width: 26px;
+    height: 28px;
+    width: 28px;
   }
 
   .navbar .navbar-brand {
@@ -184,7 +214,7 @@ button:focus-visible,
     display: block !important;
   }
 
-  .navbar-collapse {
+  .navbar.navbar-inverse.navbar-fixed-top .navbar-collapse.collapse:not(.in):not(.show) {
     background: var(--ptg-midnight);
     border-top-color: var(--ptg-line);
     clear: both;
@@ -192,8 +222,8 @@ button:focus-visible,
     width: 100%;
   }
 
-  .navbar-collapse.in,
-  .navbar-collapse.show {
+  .navbar.navbar-inverse.navbar-fixed-top .navbar-collapse.collapse.in,
+  .navbar.navbar-inverse.navbar-fixed-top .navbar-collapse.collapse.show {
     display: block !important;
   }
 
