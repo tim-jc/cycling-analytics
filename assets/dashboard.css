@@ -254,15 +254,22 @@ body {
 }
 
 .tbr-focus-control .tbr-focus-button {
+  -webkit-appearance: none;
+  appearance: none;
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--ptg-line);
+  border-radius: 0;
+  box-shadow: none;
   color: var(--ptg-muted);
   cursor: pointer;
+  font-family: var(--ptg-font-sans);
   font-size: 12px;
   line-height: 1.2;
+  margin: 0;
   padding: 7px 10px;
   text-align: left;
+  text-shadow: none;
   white-space: nowrap;
 }
 
@@ -275,10 +282,18 @@ body {
   color: var(--ptg-ink);
 }
 
-.tbr-focus-control .tbr-focus-button.is-active {
+.tbr-focus-control .tbr-focus-button.is-active,
+.tbr-focus-control .tbr-focus-button[aria-pressed="true"] {
   background: var(--ptg-surface);
   color: var(--ptg-accent);
   font-weight: 600;
+}
+
+.tbr-focus-control .tbr-focus-button:disabled {
+  background: transparent;
+  color: var(--ptg-muted);
+  cursor: not-allowed;
+  opacity: .55;
 }
 
 .tbr-focus-control .tbr-focus-button:focus-visible {

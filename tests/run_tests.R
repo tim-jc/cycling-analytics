@@ -377,6 +377,33 @@ run_test("dashboard component surfaces use Navigation Instrument tokens", {
   expect_true(!grepl(".tbr-focus-control {", dashboard_source, fixed = TRUE))
 })
 
+run_test("TBR focus buttons reset native and framework presentation", {
+  css_source <- paste(
+    readLines("assets/dashboard.css", warn = FALSE),
+    collapse = "\n"
+  )
+  identity_environment <- new.env(parent = globalenv())
+  sys.source("dashboard_identity.R", envir = identity_environment)
+
+  expect_equal(identity_environment$DASHBOARD_IDENTITY_VERSION, "1.0.1")
+  expect_true(grepl("-webkit-appearance: none", css_source, fixed = TRUE))
+  expect_true(grepl("appearance: none", css_source, fixed = TRUE))
+  expect_true(grepl("border-radius: 0", css_source, fixed = TRUE))
+  expect_true(grepl("box-shadow: none", css_source, fixed = TRUE))
+  expect_true(grepl("font-family: var(--ptg-font-sans)", css_source, fixed = TRUE))
+  expect_true(grepl("text-shadow: none", css_source, fixed = TRUE))
+  expect_true(grepl(
+    '.tbr-focus-control .tbr-focus-button[aria-pressed="true"]',
+    css_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    ".tbr-focus-control .tbr-focus-button:disabled",
+    css_source,
+    fixed = TRUE
+  ))
+})
+
 run_test("presentation components expose semantic surface states", {
   information <- as.character(latest_ride_notice("Information"))
   unavailable <- as.character(latest_ride_notice("Unavailable", "unavailable"))
