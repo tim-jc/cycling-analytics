@@ -14,11 +14,14 @@ peaks_units <- tibble::tribble(
 
 # Canonical Navigation Instrument colours used inside Plotly's serialized
 # layout, where CSS custom properties are not available.
-PLOTLY_CANVAS_IVORY <- "#F1EFE7"
-PLOTLY_MIDNIGHT_INK <- "#172630"
-PLOTLY_MUTED_INK <- "#435965"
-PLOTLY_GRID_LINE <- "#D8D4C9"
-PLOTLY_AXIS_LINE <- "#A9A59B"
+PLOTLY_CANVAS_DARK <- "#1C303B"
+PLOTLY_MIDNIGHT <- "#172630"
+PLOTLY_IVORY_INK <- "#F1EFE7"
+PLOTLY_MUTED_INK <- "#B5C6CC"
+PLOTLY_GRID_LINE <- "#435965"
+PLOTLY_AXIS_LINE <- "#8BA9B7"
+PLOTLY_COPPER <- "#D18B58"
+PLOTLY_SURVEY_BLUE <- "#8BA9B7"
 
 apply_navigation_instrument_plotly <- function(plot) {
   layout_axis_names <- unique(c(
@@ -47,26 +50,26 @@ apply_navigation_instrument_plotly <- function(plot) {
   )
   shared_layout <- c(
     list(
-      plot_bgcolor = PLOTLY_CANVAS_IVORY,
-      paper_bgcolor = PLOTLY_CANVAS_IVORY,
+      plot_bgcolor = PLOTLY_CANVAS_DARK,
+      paper_bgcolor = PLOTLY_CANVAS_DARK,
       font = list(
         family = "Avenir Next, Avenir, Segoe UI, sans-serif",
-        color = PLOTLY_MIDNIGHT_INK
+        color = PLOTLY_IVORY_INK
       ),
       legend = list(
-        bgcolor = "rgba(241, 239, 231, 0.92)",
+        bgcolor = "rgba(23, 38, 48, 0.94)",
         bordercolor = PLOTLY_GRID_LINE,
         font = list(
           family = "Avenir Next, Avenir, Segoe UI, sans-serif",
-          color = PLOTLY_MIDNIGHT_INK
+          color = PLOTLY_IVORY_INK
         )
       ),
       hoverlabel = list(
-        bgcolor = PLOTLY_MIDNIGHT_INK,
-        bordercolor = "#8BA9B7",
+        bgcolor = PLOTLY_MIDNIGHT,
+        bordercolor = PLOTLY_SURVEY_BLUE,
         font = list(
           family = "Avenir Next, Avenir, Segoe UI, sans-serif",
-          color = PLOTLY_CANVAS_IVORY
+          color = PLOTLY_IVORY_INK
         )
       )
     ),
@@ -1036,7 +1039,7 @@ draw_best_effort_telemetry <- function(
       "{round(effort_distance_mi, 2)} mi<br>{round(power_smooth, 0)} W"
     ),
     hoverinfo = "text",
-    line = list(color = "#0C2340", width = 2)
+    line = list(color = PLOTLY_COPPER, width = 2)
   )
 
   elevation_streams <- effort_streams |>
@@ -1055,7 +1058,7 @@ draw_best_effort_telemetry <- function(
           "{round(effort_distance_mi, 2)} mi<br>{round(altitude_metres, 0)} m"
         ),
         hoverinfo = "text",
-        line = list(color = "#0C2340", width = 2),
+        line = list(color = PLOTLY_SURVEY_BLUE, width = 2),
         showlegend = FALSE
       )
     elevation_annotation <- list()
@@ -1077,7 +1080,7 @@ draw_best_effort_telemetry <- function(
         xref = "paper",
         yref = "paper",
         showarrow = FALSE,
-        font = list(color = "#334155", size = 12)
+        font = list(color = PLOTLY_MUTED_INK, size = 12)
       )
     )
   }
@@ -1302,8 +1305,8 @@ draw_rolling_activity_curve <- function(activity_summary, window_days = 28) {
     fill = "tozeroy",
     text = ~hover_lbl,
     hoverinfo = "text",
-    line = list(color = "#0C2340"),
-    fillcolor = "rgba(12, 35, 64, 0.2)"
+    line = list(color = PLOTLY_COPPER),
+    fillcolor = "rgba(209, 139, 88, 0.18)"
   ) |>
     plotly::layout(
       xaxis = list(title = ""),
@@ -1423,10 +1426,10 @@ draw_weekly_training_volume <- function(
       marker = list(
         color = if_else(
           weekly_totals$is_current_week,
-          "rgba(151, 199, 211, 0.32)",
-          "rgba(151, 199, 211, 0.68)"
+          "rgba(209, 139, 88, 0.78)",
+          "rgba(139, 169, 183, 0.72)"
         ),
-        line = list(color = "#0C2340", width = 1.4)
+        line = list(color = PLOTLY_SURVEY_BLUE, width = 1.2)
       ),
       text = hover_label,
       textposition = "none",
@@ -1436,7 +1439,7 @@ draw_weekly_training_volume <- function(
     plotly::add_lines(
       x = weekly_totals$week_start,
       y = four_week_average,
-      line = list(color = "#E67E22", width = 2),
+      line = list(color = PLOTLY_COPPER, width = 2),
       hoverinfo = "skip",
       showlegend = FALSE
     ) |>
@@ -1472,9 +1475,12 @@ draw_ytd_curve <- function(metric_to_plot, ytd_stats) {
 
   ytd_curve <- ytd_tbl |>
     ggplot(aes(x = yr_day, y = value, colour = yr_lbl)) +
-    geom_step(alpha = 0.5) +
+    geom_step(alpha = 0.9) +
     theme_minimal() +
-    scale_colour_manual(values = c("pytd" = "grey85", "ytd" = "#0C2340")) +
+    scale_colour_manual(values = c(
+      "pytd" = PLOTLY_SURVEY_BLUE,
+      "ytd" = PLOTLY_COPPER
+    )) +
     scale_y_continuous(labels = format_compact_axis_label) +
     theme(legend.position = "none", axis.text.x = element_blank()) +
     labs(x = "", y = "")
@@ -1713,6 +1719,16 @@ draw_critical_metric_curve <- function(metric_to_plot, con) {
     )) +
     geom_point(aes(text = hover_lbl, customdata = activity_url)) +
     geom_area(position = "identity", alpha = 0.2) +
+    scale_colour_manual(values = c(
+      "All time" = PLOTLY_SURVEY_BLUE,
+      "Current year" = PLOTLY_COPPER,
+      "Last year" = PLOTLY_MUTED_INK
+    )) +
+    scale_fill_manual(values = c(
+      "All time" = PLOTLY_SURVEY_BLUE,
+      "Current year" = PLOTLY_COPPER,
+      "Last year" = PLOTLY_MUTED_INK
+    )) +
     theme_minimal() +
     theme(legend.position = "none") +
     labs(

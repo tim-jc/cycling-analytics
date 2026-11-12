@@ -492,11 +492,11 @@ draw_latest_ride_power_curve <- function(efforts) {
     y = ~peak_value,
     type = "scatter",
     mode = "lines+markers",
-    line = list(color = "#17324D", width = 3),
+    line = list(color = PLOTLY_COPPER, width = 3),
     marker = list(
-      color = "#F2A46F",
+      color = PLOTLY_SURVEY_BLUE,
       size = 6,
-      line = list(color = "#17324D", width = 1)
+      line = list(color = PLOTLY_CANVAS_DARK, width = 1)
     ),
     text = ~ paste0(
       format_latest_effort_duration(duration_seconds),
@@ -579,7 +579,10 @@ draw_latest_ride_hr_zones <- function(
     y = ~zone,
     type = "bar",
     orientation = "h",
-    marker = list(color = colours, line = list(color = "#17324D", width = 1)),
+    marker = list(
+      color = colours,
+      line = list(color = PLOTLY_CANVAS_DARK, width = 1)
+    ),
     text = ~ paste0(round(minutes), " min"),
     textposition = "auto",
     hovertemplate = "%{y}: %{x:.1f} min<extra></extra>"

@@ -545,12 +545,14 @@ run_test("Navigation Instrument Plotly defaults preserve analytical semantics", 
   expect_equal(after$x$layout$hovermode, before$x$layout$hovermode)
   expect_equal(after$x$layout$legend$x, before$x$layout$legend$x)
   expect_equal(after$x$layout$legend$y, before$x$layout$legend$y)
-  expect_equal(after$x$layout$plot_bgcolor, PLOTLY_CANVAS_IVORY)
-  expect_equal(after$x$layout$paper_bgcolor, PLOTLY_CANVAS_IVORY)
-  expect_equal(after$x$layout$font$color, PLOTLY_MIDNIGHT_INK)
+  expect_equal(after$x$layout$plot_bgcolor, PLOTLY_CANVAS_DARK)
+  expect_equal(after$x$layout$paper_bgcolor, PLOTLY_CANVAS_DARK)
+  expect_equal(after$x$layout$font$color, PLOTLY_IVORY_INK)
   expect_equal(after$x$layout$xaxis$gridcolor, PLOTLY_GRID_LINE)
-  expect_equal(after$x$layout$hoverlabel$bgcolor, PLOTLY_MIDNIGHT_INK)
-  expect_equal(after$x$layout$hoverlabel$font$color, PLOTLY_CANVAS_IVORY)
+  expect_equal(after$x$layout$hoverlabel$bgcolor, PLOTLY_MIDNIGHT)
+  expect_equal(after$x$layout$hoverlabel$font$color, PLOTLY_IVORY_INK)
+  expect_true(after$x$layout$plot_bgcolor != "#F1EFE7")
+  expect_true(after$x$layout$paper_bgcolor != "#F1EFE7")
 })
 
 run_test("dashboard Plotly paths use the shared presentation helper", {
@@ -588,6 +590,65 @@ run_test("dashboard Plotly paths use the shared presentation helper", {
   ))
   expect_true(grepl(".plotly .modebar-btn path", css_source, fixed = TRUE))
   expect_true(grepl("fill: var(--ptg-copper) !important", css_source, fixed = TRUE))
+})
+
+run_test("dark Plotly charts use explicit Navigation Instrument trace hierarchy", {
+  dashboard_source <- paste(
+    readLines("dashboard_functions.R", warn = FALSE),
+    collapse = "\n"
+  )
+  latest_source <- paste(
+    readLines("latest_ride_functions.R", warn = FALSE),
+    collapse = "\n"
+  )
+  tbr_source <- paste(
+    readLines("tbr_functions.R", warn = FALSE),
+    collapse = "\n"
+  )
+
+  expect_equal(PLOTLY_CANVAS_DARK, "#1C303B")
+  expect_equal(PLOTLY_COPPER, "#D18B58")
+  expect_equal(PLOTLY_SURVEY_BLUE, "#8BA9B7")
+  expect_true(grepl(
+    '"pytd" = PLOTLY_SURVEY_BLUE',
+    dashboard_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    '"ytd" = PLOTLY_COPPER',
+    dashboard_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    '"Current year" = PLOTLY_COPPER',
+    dashboard_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    '"All time" = PLOTLY_SURVEY_BLUE',
+    dashboard_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    "line = list(color = PLOTLY_COPPER, width = 3)",
+    latest_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    "high = PLOTLY_COPPER",
+    tbr_source,
+    fixed = TRUE
+  ))
+
+  power_curve <- draw_latest_ride_power_curve(tibble::tibble(
+    duration_seconds = c(5, 60, 300),
+    peak_value = c(900, 420, 310)
+  )) |>
+    plotly::plotly_build()
+  expect_equal(length(power_curve$x$data), 1L)
+  expect_equal(power_curve$x$data[[1]]$line$color, PLOTLY_COPPER)
+  expect_equal(power_curve$x$data[[1]]$marker$color, PLOTLY_SURVEY_BLUE)
+  expect_equal(power_curve$x$layout$plot_bgcolor, PLOTLY_CANVAS_DARK)
 })
 
 run_test("presentation components expose semantic surface states", {

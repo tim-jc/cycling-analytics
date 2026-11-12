@@ -213,11 +213,11 @@ draw_tbr_calendar <- function(calendar) {
       text = .data$hover
     )
   ) +
-    ggplot2::geom_tile(colour = "white", linewidth = 1) +
+    ggplot2::geom_tile(colour = PLOTLY_CANVAS_DARK, linewidth = 1) +
     ggplot2::scale_fill_gradient(
-      low = "#EDF0F1",
-      high = "#17324D",
-      na.value = "#D8DDE0",
+      low = PLOTLY_GRID_LINE,
+      high = PLOTLY_COPPER,
+      na.value = "#2B3F49",
       breaks = scales::breaks_pretty(n = 4)
     ) +
     ggplot2::labs(x = NULL, y = NULL, fill = "Adventures") +
