@@ -118,18 +118,21 @@ run_test("non-self-contained render preserves its dependency tree", {
   render_dir <- file.path(fixture_root, "render")
   dir.create(staging_dir)
   dir.create(render_dir)
-  writeLines(c(
-    "---",
-    'title: "Static site fixture"',
-    "output:",
-    "  html_document:",
-    "    self_contained: false",
-    "---",
-    "",
-    "```{r, echo=FALSE}",
-    "plotly::plot_ly(x = 1:2, y = 1:2)",
-    "```"
-  ), input_file)
+  writeLines(
+    c(
+      "---",
+      'title: "Static site fixture"',
+      "output:",
+      "  html_document:",
+      "    self_contained: false",
+      "---",
+      "",
+      "```{r, echo=FALSE}",
+      "plotly::plot_ly(x = 1:2, y = 1:2)",
+      "```"
+    ),
+    input_file
+  )
 
   render_dashboard_site(
     input_file,
@@ -232,7 +235,9 @@ run_test("dashboard identity dependency uses local favicon and brand paths", {
   expect_true(grepl("https://pastthegrid.uk/", shell_source, fixed = TRUE))
   expect_true(grepl("Past the Grid", shell_source, fixed = TRUE))
   expect_true(grepl("Cycling Analytics", shell_source, fixed = TRUE))
-  expect_true(!grepl("https://pastthegrid.uk/assets/", shell_source, fixed = TRUE))
+  expect_true(
+    !grepl("https://pastthegrid.uk/assets/", shell_source, fixed = TRUE)
+  )
 })
 
 run_test("dashboard navbar owns the Coastal reference geometry", {
@@ -269,16 +274,22 @@ run_test("mobile navigation draws a compact framework-independent hamburger", {
     css_source,
     fixed = TRUE
   ))
-  expect_true(grepl("background-image: none !important", css_source, fixed = TRUE))
+  expect_true(grepl(
+    "background-image: none !important",
+    css_source,
+    fixed = TRUE
+  ))
   expect_true(grepl("box-shadow:", css_source, fixed = TRUE))
   expect_true(grepl("height: 44px", css_source, fixed = TRUE))
   expect_true(grepl("width: 44px", css_source, fixed = TRUE))
   expect_true(grepl("-webkit-appearance: none", css_source, fixed = TRUE))
-  expect_true(!grepl(
-    ".navbar-toggle .icon-bar {\n  background-color: var(--ptg-paper)",
-    css_source,
-    fixed = TRUE
-  ))
+  expect_true(
+    !grepl(
+      ".navbar-toggle .icon-bar {\n  background-color: var(--ptg-paper)",
+      css_source,
+      fixed = TRUE
+    )
+  )
 })
 
 run_test("dashboard shell constrains mobile flex content and wrapping", {
@@ -293,7 +304,11 @@ run_test("dashboard shell constrains mobile flex content and wrapping", {
     fixed = TRUE
   ))
   expect_true(grepl("min-width: 0", css_source, fixed = TRUE))
-  expect_true(grepl("#latest-ride #ride-overview .value", css_source, fixed = TRUE))
+  expect_true(grepl(
+    "#latest-ride #ride-overview .value",
+    css_source,
+    fixed = TRUE
+  ))
   expect_true(grepl("overflow-wrap: anywhere", css_source, fixed = TRUE))
   expect_true(grepl("white-space: normal", css_source, fixed = TRUE))
   expect_true(grepl("#map .dashboard-row", css_source, fixed = TRUE))
@@ -335,14 +350,26 @@ run_test("mobile page navigation closes the existing collapse", {
 
   expect_true(grepl("installMobileNavigationClose", shell_source, fixed = TRUE))
   expect_true(grepl("(max-width: 767px)", shell_source, fixed = TRUE))
-  expect_true(grepl('collapse.addEventListener("click"', shell_source, fixed = TRUE))
+  expect_true(grepl(
+    'collapse.addEventListener("click"',
+    shell_source,
+    fixed = TRUE
+  ))
   expect_true(grepl('event.target.closest', shell_source, fixed = TRUE))
   expect_true(grepl('.navbar-nav a[href^="#"]', shell_source, fixed = TRUE))
   expect_true(grepl('.collapse("hide")', shell_source, fixed = TRUE))
   expect_true(grepl('hidden.bs.collapse', shell_source, fixed = TRUE))
   expect_true(grepl('toggle.focus()', shell_source, fixed = TRUE))
-  expect_true(grepl('toggle.setAttribute("aria-expanded", "false")', shell_source, fixed = TRUE))
-  expect_true(grepl('collapse.classList.remove("in", "show")', shell_source, fixed = TRUE))
+  expect_true(grepl(
+    'toggle.setAttribute("aria-expanded", "false")',
+    shell_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    'collapse.classList.remove("in", "show")',
+    shell_source,
+    fixed = TRUE
+  ))
 })
 
 run_test("dashboard component surfaces use Navigation Instrument tokens", {
@@ -390,7 +417,11 @@ run_test("TBR focus buttons reset native and framework presentation", {
   expect_true(grepl("appearance: none", css_source, fixed = TRUE))
   expect_true(grepl("border-radius: 0", css_source, fixed = TRUE))
   expect_true(grepl("box-shadow: none", css_source, fixed = TRUE))
-  expect_true(grepl("font-family: var(--ptg-font-sans)", css_source, fixed = TRUE))
+  expect_true(grepl(
+    "font-family: var(--ptg-font-sans)",
+    css_source,
+    fixed = TRUE
+  ))
   expect_true(grepl("text-shadow: none", css_source, fixed = TRUE))
   expect_true(grepl(
     '.tbr-focus-control .tbr-focus-button[aria-pressed="true"]',
@@ -425,7 +456,11 @@ run_test("value boxes use Navigation Instrument hierarchy and resilient text", {
   expect_true(grepl(".value-box .value", css_source, fixed = TRUE))
   expect_true(grepl(".value-box .caption", css_source, fixed = TRUE))
   expect_true(grepl(".value-box .icon i", css_source, fixed = TRUE))
-  expect_true(grepl("color: var(--ptg-survey-blue) !important", css_source, fixed = TRUE))
+  expect_true(grepl(
+    "color: var(--ptg-survey-blue) !important",
+    css_source,
+    fixed = TRUE
+  ))
   expect_true(grepl("font-size: 32px !important", css_source, fixed = TRUE))
   expect_true(grepl("max-width: calc(100% - 44px)", css_source, fixed = TRUE))
   expect_true(grepl("overflow-wrap: anywhere", css_source, fixed = TRUE))
@@ -466,10 +501,26 @@ run_test("presentation components expose semantic surface states", {
   ))
   focus_javascript <- tbr_focus_control_javascript()
 
-  expect_true(grepl("latest-ride-notice--information", information, fixed = TRUE))
-  expect_true(grepl("latest-ride-notice--unavailable", unavailable, fixed = TRUE))
-  expect_true(grepl("best-effort-placeholder__title", placeholder, fixed = TRUE))
-  expect_true(grepl("best-effort-placeholder__detail", placeholder, fixed = TRUE))
+  expect_true(grepl(
+    "latest-ride-notice--information",
+    information,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    "latest-ride-notice--unavailable",
+    unavailable,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    "best-effort-placeholder__title",
+    placeholder,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    "best-effort-placeholder__detail",
+    placeholder,
+    fixed = TRUE
+  ))
   expect_true(!grepl("background: #f8fafc", placeholder, fixed = TRUE))
   expect_true(grepl("aria-pressed", focus_javascript, fixed = TRUE))
   expect_true(grepl("is-active", focus_javascript, fixed = TRUE))
@@ -577,7 +628,9 @@ activities <- tibble(
   activity_id = c(1, 2, 3),
   sport_type = c("Ride", "Ride", "VirtualRide"),
   start_datetime_local = as.POSIXct(c(
-    "2026-07-20 08:00:00", "2026-07-21 08:00:00", "2025-07-20 08:00:00"
+    "2026-07-20 08:00:00",
+    "2026-07-21 08:00:00",
+    "2025-07-20 08:00:00"
   )),
   start_date_local = as.Date(c("2026-07-20", "2026-07-21", "2025-07-20")),
   distance_metres = c(10, 20, 5) * metres_per_mile,
@@ -624,28 +677,26 @@ notification_next_line <- function(supplied_text) {
 }
 
 run_test("render notification displays infrastructure 20:30 value", {
-  expect_equal(notification_next_line("20:30"),
-    "Next refresh: 20:30")
+  expect_equal(notification_next_line("20:30"), "Next refresh: 20:30")
 })
 
 run_test("render notification displays infrastructure 02:30 value", {
-  expect_equal(notification_next_line("02:30"),
-    "Next refresh: 02:30")
+  expect_equal(notification_next_line("02:30"), "Next refresh: 02:30")
 })
 
 run_test("render notification displays infrastructure unscheduled value", {
-  expect_equal(notification_next_line("not scheduled"),
-    "Next refresh: not scheduled")
+  expect_equal(
+    notification_next_line("not scheduled"),
+    "Next refresh: not scheduled"
+  )
 })
 
 run_test("render notification does not derive a missing production value", {
-  expect_equal(notification_next_line(NA),
-    "Next refresh: not scheduled")
+  expect_equal(notification_next_line(NA), "Next refresh: not scheduled")
 })
 
 run_test("render notification treats an empty production value as unscheduled", {
-  expect_equal(notification_next_line(""),
-    "Next refresh: not scheduled")
+  expect_equal(notification_next_line(""), "Next refresh: not scheduled")
 })
 
 run_test("obsolete local publish mode is rejected before rendering", {
@@ -711,7 +762,9 @@ notification_activity_fixture <- tibble(
   activity_id = c(20010000001, 20025109853, 20030000001),
   sport_type = c("Ride", "VirtualRide", "Run"),
   start_datetime_local = as.POSIXct(c(
-    "2026-08-31 08:00:00", "2026-09-03 20:16:34", "2026-09-04 08:00:00"
+    "2026-08-31 08:00:00",
+    "2026-09-03 20:16:34",
+    "2026-09-04 08:00:00"
   )),
   start_date_local = as.Date(c("2026-08-31", "2026-09-03", "2026-09-04")),
   distance_metres = c(50 * METRES_PER_MILE, 30224.1, 10 * METRES_PER_MILE),
@@ -764,7 +817,10 @@ run_test("notification selection is independent of Latest Ride significance", {
   short_virtual <- notification_activity_fixture |>
     dplyr::filter(.data$activity_id == 20025109853) |>
     dplyr::mutate(moving_time_seconds = 10 * 60)
-  expect_equal(select_latest_cycling_activity(short_virtual)$activity_id, 20025109853)
+  expect_equal(
+    select_latest_cycling_activity(short_virtual)$activity_id,
+    20025109853
+  )
   expect_equal(nrow(select_latest_significant_activity(short_virtual)), 0L)
 })
 
@@ -773,7 +829,8 @@ run_test("latest ride uses start time when rides share a date", {
     activity_id = c(19501207283, 19502918454),
     sport_type = c("Ride", "Ride"),
     start_datetime_local = as.POSIXct(c(
-      "2026-07-28 05:13:09", "2026-07-28 17:18:51"
+      "2026-07-28 05:13:09",
+      "2026-07-28 17:18:51"
     )),
     start_date_local = as.Date(c("2026-07-28", "2026-07-28")),
     distance_metres = c(213806, 13047.5)
@@ -810,7 +867,10 @@ run_test("calendar-year boundary keeps current and previous year separate", {
     20
   )
   expect_equal(
-    ytd |> filter(yr == 2025) |> summarise(value = max(yr_distance_mi)) |> pull(value),
+    ytd |>
+      filter(yr == 2025) |>
+      summarise(value = max(yr_distance_mi)) |>
+      pull(value),
     10
   )
 })
@@ -992,14 +1052,19 @@ run_test("geocoding failure does not affect ride selection or metrics", {
   ride_fixture <- tibble(
     activity_id = c(1, 2),
     sport_type = c("Ride", "VirtualRide"),
-    start_datetime_local = as.POSIXct(c("2026-10-01 08:00:00", "2026-10-02 08:00:00")),
+    start_datetime_local = as.POSIXct(c(
+      "2026-10-01 08:00:00",
+      "2026-10-02 08:00:00"
+    )),
     distance_metres = c(25, 10) * METRES_PER_MILE,
     moving_time_seconds = c(3600, 1800)
   )
   selected_before <- select_latest_significant_activity(ride_fixture)
   distance_before <- sum(ride_fixture$distance_metres)
   failed_geocoder <- function(positions) {
-    stop(mock_geocoding_error("Failed to connect to nominatim.openstreetmap.org"))
+    stop(mock_geocoding_error(
+      "Failed to connect to nominatim.openstreetmap.org"
+    ))
   }
   extrema <- get_position_extremities(
     geocode_stream_fixture,
@@ -1017,21 +1082,26 @@ latest_ride_fixture <- tibble(
   activity_id = c(1, 2, 3, 4),
   sport_type = c("Ride", "Ride", "VirtualRide", "Run"),
   start_datetime_local = as.POSIXct(c(
-    "2026-07-20 08:00:00", "2026-07-22 08:00:00",
-    "2026-07-23 08:00:00", "2026-07-24 08:00:00"
+    "2026-07-20 08:00:00",
+    "2026-07-22 08:00:00",
+    "2026-07-23 08:00:00",
+    "2026-07-24 08:00:00"
   )),
   distance_metres = c(19.9, 20, 18.8, 50) * METRES_PER_MILE,
   moving_time_seconds = c(3600, 3600, 3641, 3600)
 )
 
 run_test("Latest Ride skips a newer activity under 20 miles", {
-  fixture <- latest_ride_fixture |> dplyr::filter(.data$activity_id %in% c(1, 2))
+  fixture <- latest_ride_fixture |>
+    dplyr::filter(.data$activity_id %in% c(1, 2))
   selected <- select_latest_significant_activity(fixture)
   expect_equal(selected$activity_id, 2)
 })
 
 run_test("Latest Ride includes exactly 20 miles", {
-  selected <- select_latest_significant_activity(latest_ride_fixture |> dplyr::slice(2))
+  selected <- select_latest_significant_activity(
+    latest_ride_fixture |> dplyr::slice(2)
+  )
   expect_equal(selected$activity_id, 2)
 })
 
@@ -1041,7 +1111,9 @@ run_test("Latest Ride chooses the newest qualifying cycling activity", {
 })
 
 run_test("Latest Ride includes substantive virtual sessions below 20 miles", {
-  selected <- select_latest_significant_activity(latest_ride_fixture |> dplyr::slice(3))
+  selected <- select_latest_significant_activity(
+    latest_ride_fixture |> dplyr::slice(3)
+  )
   expect_equal(selected$activity_id, 3)
 })
 
@@ -1079,12 +1151,16 @@ run_test("activity queries and selectors do not depend on trainer flag", {
 })
 
 run_test("Latest Ride excludes non-cycling activities", {
-  selected <- select_latest_significant_activity(latest_ride_fixture |> dplyr::slice(4))
+  selected <- select_latest_significant_activity(
+    latest_ride_fixture |> dplyr::slice(4)
+  )
   expect_equal(nrow(selected), 0L)
 })
 
 run_test("Latest Ride has an explicit empty state with the selection rule", {
-  selected <- select_latest_significant_activity(latest_ride_fixture |> dplyr::slice(1))
+  selected <- select_latest_significant_activity(
+    latest_ride_fixture |> dplyr::slice(1)
+  )
   expect_equal(nrow(selected), 0L)
   empty_message <- latest_ride_empty_message()
   expect_true(grepl("at least 20 miles", empty_message, fixed = TRUE))
@@ -1093,8 +1169,11 @@ run_test("Latest Ride has an explicit empty state with the selection rule", {
 
 run_test("missing one Latest Ride stream does not suppress other traces", {
   partial_streams <- tibble(
-    altitude_metres = c(100, 105), watts = c(NA_real_, NA_real_),
-    heartrate_bpm = c(130, 135), latitude = c(51.5, 51.6), longitude = c(-0.1, -0.2)
+    altitude_metres = c(100, 105),
+    watts = c(NA_real_, NA_real_),
+    heartrate_bpm = c(130, 135),
+    latitude = c(51.5, 51.6),
+    longitude = c(-0.1, -0.2)
   )
   availability <- latest_ride_stream_availability(partial_streams)
   expect_true(availability[["elevation"]])
@@ -1266,7 +1345,8 @@ tbr_activity_fixture <- function(count = 4L) {
     start_datetime_local = as.POSIXct(
       "2026-01-01 09:00:00",
       tz = "Europe/London"
-    ) + (seq_len(count) - 1L) * 86400,
+    ) +
+      (seq_len(count) - 1L) * 86400,
     start_date_local = as.Date("2026-01-01") + seq_len(count) - 1L,
     distance_metres = seq_len(count) * TBR_METRES_PER_MILE,
     moving_time_seconds = seq_len(count) * 600
@@ -1293,7 +1373,9 @@ tbr_stream_fixture <- function(activity_id = "1", valid = TRUE) {
 
 run_test("TBR selection is case-insensitive and finds longer names", {
   fixture <- tbr_activity_fixture(4) |>
-    dplyr::mutate(activity_name = c("TBR", "tbr shops", "Family TbR loop", "Morning ride"))
+    dplyr::mutate(
+      activity_name = c("TBR", "tbr shops", "Family TbR loop", "Morning ride")
+    )
   selected <- select_tbr_activities(fixture)
 
   expect_equal(selected$activity_id, c("1", "2", "3"))
@@ -1356,9 +1438,14 @@ run_test("TBR summary handles missing measurements and empty history", {
 run_test("TBR calendar fills months across multiple years", {
   fixture <- tbr_activity_fixture(3) |>
     dplyr::mutate(
-      start_datetime_local = as.POSIXct(c(
-        "2025-12-31 23:30:00", "2026-01-01 00:30:00", "2026-01-20 10:00:00"
-      ), tz = "Europe/London"),
+      start_datetime_local = as.POSIXct(
+        c(
+          "2025-12-31 23:30:00",
+          "2026-01-01 00:30:00",
+          "2026-01-20 10:00:00"
+        ),
+        tz = "Europe/London"
+      ),
       start_date_local = as.Date(c("2025-12-31", "2026-01-01", "2026-01-20")),
       distance_metres = c(1, 2, 3) * TBR_METRES_PER_MILE
     )
@@ -1382,7 +1469,10 @@ run_test("TBR calendar has an explicit empty model", {
 run_test("TBR milestones use stable activity ordering", {
   fixture <- tbr_activity_fixture(10) |>
     dplyr::mutate(
-      start_datetime_local = as.POSIXct("2026-02-01 10:00:00", tz = "Europe/London"),
+      start_datetime_local = as.POSIXct(
+        "2026-02-01 10:00:00",
+        tz = "Europe/London"
+      ),
       start_date_local = as.Date("2026-02-01"),
       activity_id = as.character(rev(seq_len(10)))
     )
@@ -1408,26 +1498,44 @@ run_test("TBR mileage milestones use the first exact threshold crossing", {
 run_test("TBR longest and most-active month rules are deterministic", {
   fixture <- tbr_activity_fixture(4) |>
     dplyr::mutate(
-      start_datetime_local = as.POSIXct(c(
-        "2026-01-01 10:00:00", "2026-01-02 10:00:00",
-        "2026-02-01 10:00:00", "2026-02-02 10:00:00"
-      ), tz = "Europe/London"),
+      start_datetime_local = as.POSIXct(
+        c(
+          "2026-01-01 10:00:00",
+          "2026-01-02 10:00:00",
+          "2026-02-01 10:00:00",
+          "2026-02-02 10:00:00"
+        ),
+        tz = "Europe/London"
+      ),
       start_date_local = as.Date(c(
-        "2026-01-01", "2026-01-02", "2026-02-01", "2026-02-02"
+        "2026-01-01",
+        "2026-01-02",
+        "2026-02-01",
+        "2026-02-02"
       )),
       distance_metres = c(5, 5, 4, 7) * TBR_METRES_PER_MILE
     )
   milestones <- build_tbr_milestones(fixture)
 
-  expect_true(any(grepl("Longest adventure — 7.0 miles", milestones$label, fixed = TRUE)))
-  expect_true(any(grepl("Most active month — February 2026", milestones$label, fixed = TRUE)))
+  expect_true(any(grepl(
+    "Longest adventure — 7.0 miles",
+    milestones$label,
+    fixed = TRUE
+  )))
+  expect_true(any(grepl(
+    "Most active month — February 2026",
+    milestones$label,
+    fixed = TRUE
+  )))
 })
 
 run_test("TBR route preparation excludes invalid and degenerate geometry", {
   invalid <- prepare_tbr_route(tbr_stream_fixture(valid = FALSE))
   repeated <- prepare_tbr_route(tibble(
-    activity_id = "1", sample_index = 1:3,
-    latitude = rep(51.5, 3), longitude = rep(-0.1, 3)
+    activity_id = "1",
+    sample_index = 1:3,
+    latitude = rep(51.5, 3),
+    longitude = rep(-0.1, 3)
   ))
 
   expect_true(!invalid$eligible)
@@ -1436,7 +1544,8 @@ run_test("TBR route preparation excludes invalid and degenerate geometry", {
 
 run_test("TBR route preparation does not bridge missing coordinates", {
   streams <- tibble(
-    activity_id = "1", sample_index = 1:5,
+    activity_id = "1",
+    sample_index = 1:5,
     latitude = c(51.50, 51.51, NA, 51.60, 51.61),
     longitude = c(-0.20, -0.19, NA, -0.10, -0.09)
   )
@@ -1472,16 +1581,36 @@ run_test("TBR focus discovery finds local holiday and future-home areas", {
   )
   assignments <- focus$assignments
 
-  expect_equal(nrow(dplyr::filter(focus$controls, .data$control_type == "area")), 3L)
-  expect_equal(assignments$cluster_id[assignments$activity_id == "1"], assignments$cluster_id[assignments$activity_id == "2"])
-  expect_equal(assignments$cluster_id[assignments$activity_id == "3"], assignments$cluster_id[assignments$activity_id == "4"])
-  expect_equal(assignments$cluster_id[assignments$activity_id == "5"], assignments$cluster_id[assignments$activity_id == "6"])
-  expect_true(length(unique(assignments$cluster_id[assignments$activity_id %in% c("1", "3", "5")])) == 3L)
+  expect_equal(
+    nrow(dplyr::filter(focus$controls, .data$control_type == "area")),
+    3L
+  )
+  expect_equal(
+    assignments$cluster_id[assignments$activity_id == "1"],
+    assignments$cluster_id[assignments$activity_id == "2"]
+  )
+  expect_equal(
+    assignments$cluster_id[assignments$activity_id == "3"],
+    assignments$cluster_id[assignments$activity_id == "4"]
+  )
+  expect_equal(
+    assignments$cluster_id[assignments$activity_id == "5"],
+    assignments$cluster_id[assignments$activity_id == "6"]
+  )
+  expect_true(
+    length(unique(assignments$cluster_id[
+      assignments$activity_id %in% c("1", "3", "5")
+    ])) ==
+      3L
+  )
 })
 
 run_test("TBR focus membership is independent of input order", {
   fixture <- tbr_representative_fixture()
-  first <- discover_tbr_focus_areas(fixture, latest_mapped_activity_id = "7")$assignments |>
+  first <- discover_tbr_focus_areas(
+    fixture,
+    latest_mapped_activity_id = "7"
+  )$assignments |>
     dplyr::select("activity_id", "cluster_id", "control_type", "control_label")
   second <- discover_tbr_focus_areas(
     dplyr::slice_sample(fixture, prop = 1),
@@ -1537,21 +1666,31 @@ run_test("TBR clustering distance parameter has predictable effects", {
 run_test("TBR route start representative prevents long-route cluster bridging", {
   activities <- tbr_activity_fixture(3) |>
     dplyr::mutate(
-      start_datetime_local = as.POSIXct(c("2026-01-01", "2026-01-02", "2026-01-03")),
+      start_datetime_local = as.POSIXct(c(
+        "2026-01-01",
+        "2026-01-02",
+        "2026-01-03"
+      )),
       start_date_local = as.Date(c("2026-01-01", "2026-01-02", "2026-01-03"))
     )
   streams <- dplyr::bind_rows(
     tibble(
-      activity_id = "1", sample_index = 1:3,
-      latitude = c(51.50, 48.00, 44.00), longitude = c(-0.10, -0.50, -1.00)
+      activity_id = "1",
+      sample_index = 1:3,
+      latitude = c(51.50, 48.00, 44.00),
+      longitude = c(-0.10, -0.50, -1.00)
     ),
     tibble(
-      activity_id = "2", sample_index = 1:2,
-      latitude = c(51.51, 51.52), longitude = c(-0.11, -0.12)
+      activity_id = "2",
+      sample_index = 1:2,
+      latitude = c(51.51, 51.52),
+      longitude = c(-0.11, -0.12)
     ),
     tibble(
-      activity_id = "3", sample_index = 1:2,
-      latitude = c(44.01, 44.02), longitude = c(-1.01, -1.02)
+      activity_id = "3",
+      sample_index = 1:2,
+      latitude = c(44.01, 44.02),
+      longitude = c(-1.01, -1.02)
     )
   )
   model <- build_tbr_map_model(activities, streams)
@@ -1562,7 +1701,10 @@ run_test("TBR route start representative prevents long-route cluster bridging", 
     latest_mapped_activity_id = model$latest_mapped_activity_id
   )
 
-  expect_equal(model$representatives$latitude[model$representatives$activity_id == "1"], 51.50)
+  expect_equal(
+    model$representatives$latitude[model$representatives$activity_id == "1"],
+    51.50
+  )
   expect_equal(nrow(focus$controls), 1L)
   expect_equal(
     focus$assignments$cluster_id[focus$assignments$activity_id == "1"],
@@ -1572,7 +1714,10 @@ run_test("TBR route start representative prevents long-route cluster bridging", 
 
 run_test("invalid TBR routes do not determine focus areas", {
   activities <- tbr_activity_fixture(2)
-  streams <- dplyr::bind_rows(tbr_stream_fixture("1"), tbr_stream_fixture("2", FALSE))
+  streams <- dplyr::bind_rows(
+    tbr_stream_fixture("1"),
+    tbr_stream_fixture("2", FALSE)
+  )
   model <- build_tbr_map_model(activities, streams)
 
   expect_equal(model$representatives$activity_id, "1")
@@ -1586,9 +1731,15 @@ run_test("TBR viewports contain latest focus and all route geometry", {
     tbr_stream_fixture("2") |>
       dplyr::mutate(latitude = .data$latitude + 0.02),
     tbr_stream_fixture("3") |>
-      dplyr::mutate(latitude = .data$latitude - 7, longitude = .data$longitude - 1),
+      dplyr::mutate(
+        latitude = .data$latitude - 7,
+        longitude = .data$longitude - 1
+      ),
     tbr_stream_fixture("4") |>
-      dplyr::mutate(latitude = .data$latitude - 7.02, longitude = .data$longitude - 1.02)
+      dplyr::mutate(
+        latitude = .data$latitude - 7.02,
+        longitude = .data$longitude - 1.02
+      )
   )
   model <- build_tbr_map_model(activities, streams)
   latest <- dplyr::filter(model$viewports, .data$kind == "latest")
@@ -1645,14 +1796,22 @@ run_test("TBR locality labels prefer broad recognisable places", {
   )
   expect_equal(
     tbr_locality_label(
-      tibble(borough = NA_character_, municipality = "Mimizan", town = "Parentis-en-Born"),
+      tibble(
+        borough = NA_character_,
+        municipality = "Mimizan",
+        town = "Parentis-en-Born"
+      ),
       "Area 2"
     ),
     "Mimizan"
   )
   expect_equal(
     tbr_locality_label(
-      tibble(borough = NA_character_, municipality = NA_character_, town = "Parentis-en-Born"),
+      tibble(
+        borough = NA_character_,
+        municipality = NA_character_,
+        town = "Parentis-en-Born"
+      ),
       "Area 2"
     ),
     "Parentis-en-Born"
@@ -1694,11 +1853,18 @@ run_test("TBR focus geocoding uses median member starts without changing cluster
   geocoder <- function(locations) {
     calls <<- calls + 1L
     places <- c("London", "Mimizan", "Manchester")
-    dplyr::bind_cols(locations, tibble(borough = places[seq_len(nrow(locations))]))
+    dplyr::bind_cols(
+      locations,
+      tibble(borough = places[seq_len(nrow(locations))])
+    )
   }
 
   labelled <- label_tbr_focus_areas(model, geocoder = geocoder, cache = cache)
-  labelled_again <- label_tbr_focus_areas(model, geocoder = geocoder, cache = cache)
+  labelled_again <- label_tbr_focus_areas(
+    model,
+    geocoder = geocoder,
+    cache = cache
+  )
 
   expect_equal(positions$latitude, c(51.51, 44.02, 53.015))
   expect_equal(positions$longitude, c(-0.11, -1.015, -2.01))
@@ -1711,7 +1877,10 @@ run_test("TBR focus geocoding uses median member starts without changing cluster
     labelled$focus_areas$controls$control_label,
     c("London", "Mimizan", "Manchester")
   )
-  expect_equal(labelled_again$focus_areas$controls$control_label, labelled$focus_areas$controls$control_label)
+  expect_equal(
+    labelled_again$focus_areas$controls$control_label,
+    labelled$focus_areas$controls$control_label
+  )
   expect_equal(calls, 1L)
 })
 
@@ -1720,8 +1889,16 @@ run_test("TBR focus locality failure preserves generic labels and viewport bound
   streams <- dplyr::bind_rows(
     tbr_stream_fixture("1"),
     tbr_stream_fixture("2") |> dplyr::mutate(latitude = .data$latitude + 0.02),
-    tbr_stream_fixture("3") |> dplyr::mutate(latitude = .data$latitude - 7, longitude = .data$longitude - 1),
-    tbr_stream_fixture("4") |> dplyr::mutate(latitude = .data$latitude - 7.02, longitude = .data$longitude - 1.02)
+    tbr_stream_fixture("3") |>
+      dplyr::mutate(
+        latitude = .data$latitude - 7,
+        longitude = .data$longitude - 1
+      ),
+    tbr_stream_fixture("4") |>
+      dplyr::mutate(
+        latitude = .data$latitude - 7.02,
+        longitude = .data$longitude - 1.02
+      )
   )
   model <- build_tbr_map_model(activities, streams)
   warnings <- character()
@@ -1732,7 +1909,10 @@ run_test("TBR focus locality failure preserves generic labels and viewport bound
     warn = function(message, ...) warnings <<- c(warnings, message)
   )
 
-  expect_equal(labelled$focus_areas$controls$control_label, model$focus_areas$controls$control_label)
+  expect_equal(
+    labelled$focus_areas$controls$control_label,
+    model$focus_areas$controls$control_label
+  )
   expect_equal(
     dplyr::select(labelled$viewports, -"label"),
     dplyr::select(model$viewports, -"label")
@@ -1747,10 +1927,12 @@ run_test("TBR map renders geocoded focus labels without changing route layers", 
   map <- draw_tbr_adventure_map(
     tbr_activity_fixture(2),
     dplyr::bind_rows(tbr_stream_fixture("1"), tbr_stream_fixture("2")),
-    geocoder = function(locations) dplyr::bind_cols(
-      locations,
-      tibble(borough = rep("Richmond upon Thames", nrow(locations)))
-    ),
+    geocoder = function(locations) {
+      dplyr::bind_cols(
+        locations,
+        tibble(borough = rep("Richmond upon Thames", nrow(locations)))
+      )
+    },
     geocode_cache = new.env(parent = emptyenv())
   )
   methods <- leaflet_call_methods(map)
@@ -1767,7 +1949,11 @@ run_test("TBR map renders historical and highlighted route presentation", {
   withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
   activities <- tbr_activity_fixture(2)
   streams <- dplyr::bind_rows(tbr_stream_fixture("1"), tbr_stream_fixture("2"))
-  map <- draw_tbr_adventure_map(activities, streams, geocode_focus_labels = FALSE)
+  map <- draw_tbr_adventure_map(
+    activities,
+    streams,
+    geocode_focus_labels = FALSE
+  )
   methods <- leaflet_call_methods(map)
   lines <- map$x$calls[methods == "addPolylines"]
   colours <- vapply(lines, function(call) call$args[[4]]$color, character(1))
@@ -1776,7 +1962,11 @@ run_test("TBR map renders historical and highlighted route presentation", {
   latest_popup <- lines[[2]]$args[[5]]
 
   expect_true(inherits(map, "leaflet"))
-  expect_true(grepl("rastertiles/voyager_labels_under", map$x$calls[[1]]$args[[1]], fixed = TRUE))
+  expect_true(grepl(
+    "rastertiles/voyager_labels_under",
+    map$x$calls[[1]]$args[[1]],
+    fixed = TRUE
+  ))
   expect_equal(colours, c(TBR_HISTORICAL_ROUTE_COLOR, TBR_LATEST_ROUTE_COLOR))
   expect_equal(weights, c(TBR_HISTORICAL_ROUTE_WEIGHT, TBR_LATEST_ROUTE_WEIGHT))
   expect_equal(
@@ -1785,7 +1975,11 @@ run_test("TBR map renders historical and highlighted route presentation", {
   )
   expect_true(grepl("tbr-2-", lines[[length(lines)]]$args[[2]], fixed = TRUE))
   expect_true(grepl("Latest mapped adventure", control, fixed = TRUE))
-  expect_true(grepl("https://www.strava.com/activities/2", latest_popup, fixed = TRUE))
+  expect_true(grepl(
+    "https://www.strava.com/activities/2",
+    latest_popup,
+    fixed = TRUE
+  ))
   expect_equal(sum(methods == "addPolylines"), 2L)
   expect_true(length(map$jsHooks$render) == 1L)
   hook <- map$jsHooks$render[[1]]
@@ -1834,12 +2028,22 @@ run_test("TBR map has clear empty and no-GPS states", {
     empty_tbr_position_streams()
   )
 
-  expect_true(grepl("No family adventures", as.character(no_history), fixed = TRUE))
-  expect_true(grepl("none currently has usable route", as.character(no_gps), fixed = TRUE))
+  expect_true(grepl(
+    "No family adventures",
+    as.character(no_history),
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    "none currently has usable route",
+    as.character(no_gps),
+    fixed = TRUE
+  ))
 })
 
 run_test("a qualifying Latest Ride remains usable without streams", {
-  selected <- select_latest_significant_activity(latest_ride_fixture |> dplyr::slice(2)) |>
+  selected <- select_latest_significant_activity(
+    latest_ride_fixture |> dplyr::slice(2)
+  ) |>
     dplyr::mutate(activity_name = "Fixture ride")
   availability <- latest_ride_stream_availability(empty_latest_ride_streams())
   expect_equal(nrow(selected), 1L)
@@ -1848,8 +2052,16 @@ run_test("a qualifying Latest Ride remains usable without streams", {
   identity_html <- as.character(identity)
   expect_true(inherits(identity, "shiny.tag"))
   expect_true(grepl("Fixture ride", identity_html, fixed = TRUE))
-  expect_true(grepl("Wednesday 22 July 2026, 08:00", identity_html, fixed = TRUE))
-  expect_true(grepl("https://www.strava.com/activities/2", identity_html, fixed = TRUE))
+  expect_true(grepl(
+    "Wednesday 22 July 2026, 08:00",
+    identity_html,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    "https://www.strava.com/activities/2",
+    identity_html,
+    fixed = TRUE
+  ))
 })
 
 run_test("Latest Ride HR zones use an explicit configured maximum", {
@@ -1857,7 +2069,10 @@ run_test("Latest Ride HR zones use an explicit configured maximum", {
   zones <- build_latest_ride_hr_zones(zone_streams, max_hr_bpm = 200)
   expect_equal(as.character(zones$zone), paste0("Z", 1:5))
   expect_equal(sum(zones$seconds), 5)
-  expect_equal(nrow(build_latest_ride_hr_zones(zone_streams, max_hr_bpm = NA_real_)), 0L)
+  expect_equal(
+    nrow(build_latest_ride_hr_zones(zone_streams, max_hr_bpm = NA_real_)),
+    0L
+  )
 })
 
 run_test("Latest Ride highlights favour activity and strong power rankings", {
@@ -1870,7 +2085,11 @@ run_test("Latest Ride highlights favour activity and strong power rankings", {
   )
   rendered <- as.character(latest_ride_highlights(rankings))
   expect_true(grepl("4th longest ride this year", rendered, fixed = TRUE))
-  expect_true(grepl("2nd fastest 50+ mile ride this year", rendered, fixed = TRUE))
+  expect_true(grepl(
+    "2nd fastest 50+ mile ride this year",
+    rendered,
+    fixed = TRUE
+  ))
   expect_true(grepl("1st best 30 min power this year", rendered, fixed = TRUE))
   expect_true(!grepl("12th", rendered, fixed = TRUE))
 })
@@ -1883,7 +2102,10 @@ inspector_activity_fixture <- function(activity_id = "123") {
     activity_type = "Ride",
     timezone_name = "Europe/London",
     start_datetime_utc = as.POSIXct("2026-08-01 07:00:00", tz = "UTC"),
-    start_datetime_local = as.POSIXct("2026-08-01 08:00:00", tz = "Europe/London"),
+    start_datetime_local = as.POSIXct(
+      "2026-08-01 08:00:00",
+      tz = "Europe/London"
+    ),
     start_date_local = as.Date("2026-08-01"),
     start_time_local = "08:00:00",
     distance_metres = 10000,
@@ -1934,10 +2156,28 @@ run_test("Activity Inspector uses parameterised activity-scoped SELECT queries",
   fetch_inspector_activity(NULL, "123", get_query = query)
   fetch_inspector_streams(NULL, "123", get_query = query)
 
-  expect_true(all(vapply(calls, function(call) grepl("WHERE activity_id = ?", call$statement, fixed = TRUE), logical(1))))
-  expect_true(all(vapply(calls, function(call) identical(call$params, list("123")), logical(1))))
-  expect_true(grepl("ORDER BY sample_index", calls[[2]]$statement, fixed = TRUE))
-  expect_true(all(!grepl("INSERT|UPDATE|DELETE", vapply(calls, `[[`, character(1), "statement"), ignore.case = TRUE)))
+  expect_true(all(vapply(
+    calls,
+    function(call) grepl("WHERE activity_id = ?", call$statement, fixed = TRUE),
+    logical(1)
+  )))
+  expect_true(all(vapply(
+    calls,
+    function(call) identical(call$params, list("123")),
+    logical(1)
+  )))
+  expect_true(grepl(
+    "ORDER BY sample_index",
+    calls[[2]]$statement,
+    fixed = TRUE
+  ))
+  expect_true(all(
+    !grepl(
+      "INSERT|UPDATE|DELETE",
+      vapply(calls, `[[`, character(1), "statement"),
+      ignore.case = TRUE
+    )
+  ))
 })
 
 run_test("Activity Inspector closes its connection and handles a missing activity", {
@@ -1945,7 +2185,9 @@ run_test("Activity Inspector closes its connection and handles a missing activit
   query_count <- 0L
   result <- load_inspector_activity(
     "123",
-    connection_factory = function() structure(list(), class = "fixture_connection"),
+    connection_factory = function() {
+      structure(list(), class = "fixture_connection")
+    },
     disconnect = function(connection) disconnected <<- TRUE,
     get_query = function(connection, statement, params) {
       query_count <<- query_count + 1L
@@ -1961,7 +2203,13 @@ run_test("Activity Inspector closes its connection and handles a missing activit
 
 run_test("Activity Inspector preserves missing fields and duplicate elapsed times", {
   streams <- inspector_stream_fixture() |>
-    dplyr::select("activity_id", "sample_index", "time_seconds", "latitude", "longitude")
+    dplyr::select(
+      "activity_id",
+      "sample_index",
+      "time_seconds",
+      "latitude",
+      "longitude"
+    )
   model <- prepare_inspection_model(inspector_activity_fixture(), streams)
 
   expect_equal(model$streams$sample_index, 1:6)
@@ -2034,14 +2282,24 @@ run_test("Activity Inspector permits missing-GPS boundaries and formats clipboar
 
 run_test("Activity Inspector map and timeline preserve canonical sample identity", {
   withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
-  model <- prepare_inspection_model(inspector_activity_fixture(), inspector_stream_fixture())
+  model <- prepare_inspection_model(
+    inspector_activity_fixture(),
+    inspector_stream_fixture()
+  )
   map <- build_inspector_map(model)
-  timeline <- build_inspector_timeline(model, "distance_metres", current_index = 4L)
+  timeline <- build_inspector_timeline(
+    model,
+    "distance_metres",
+    current_index = 4L
+  )
   built_timeline <- plotly::plotly_build(timeline)
   map_methods <- leaflet_call_methods(map)
 
   expect_true("addPolylines" %in% map_methods)
-  expect_equal(as.integer(built_timeline$x$data[[1]]$customdata), model$streams$sample_index)
+  expect_equal(
+    as.integer(built_timeline$x$data[[1]]$customdata),
+    model$streams$sample_index
+  )
   expect_equal(built_timeline$x$data[[1]]$type, "scattergl")
   expect_equal(built_timeline$x$layout$shapes[[1]]$x0, 4L)
 })
@@ -2099,7 +2357,9 @@ run_test("Activity Inspector server supports load inspect and boundary workflow"
       expect_equal(state$current_index, 1L)
       expect_equal(nrow(state$model$streams), 6L)
 
-      session$setInputs(activity_map_shape_click = list(lat = 51.504, lng = -0.096))
+      session$setInputs(
+        activity_map_shape_click = list(lat = 51.504, lng = -0.096)
+      )
       session$flushReact()
       expect_equal(state$current_index, 4L)
 
@@ -2126,16 +2386,19 @@ run_test("missing database configuration fails before connection retries", {
     "MARIADB_PASSWORD"
   )
   old_values <- Sys.getenv(database_keys, unset = NA_character_)
-  on.exit({
-    Sys.unsetenv(database_keys)
-    present <- !is.na(old_values)
-    if (any(present)) {
-      do.call(
-        Sys.setenv,
-        as.list(stats::setNames(old_values[present], database_keys[present]))
-      )
-    }
-  }, add = TRUE)
+  on.exit(
+    {
+      Sys.unsetenv(database_keys)
+      present <- !is.na(old_values)
+      if (any(present)) {
+        do.call(
+          Sys.setenv,
+          as.list(stats::setNames(old_values[present], database_keys[present]))
+        )
+      }
+    },
+    add = TRUE
+  )
 
   Sys.unsetenv(database_keys)
   expect_error(
@@ -2198,8 +2461,13 @@ run_test("interval ride selects several coaching efforts", {
   laps <- coaching_lap_fixture(
     c(0.75, 1.30, 0.55, 1.25, 0.55, 1.20, 0.70),
     names = c(
-      "Warm up", "Interval 1", "Recovery", "Interval 2",
-      "Recovery 2", "Threshold", "Cool down"
+      "Warm up",
+      "Interval 1",
+      "Recovery",
+      "Interval 2",
+      "Recovery 2",
+      "Threshold",
+      "Cool down"
     )
   )
   selected <- select_coaching_efforts(laps)
@@ -2345,7 +2613,10 @@ run_test("coaching effort telemetry is normalised to the lap", {
   model <- build_coaching_effort_model(effort, streams)
 
   expect_equal(range(model$streams$effort_time_minutes), c(0, 1))
-  expect_equal(range(model$streams$effort_distance_miles), c(0, 60 * 0.000621371))
+  expect_equal(
+    range(model$streams$effort_distance_miles),
+    c(0, 60 * 0.000621371)
+  )
 })
 
 run_test("coaching effort telemetry uses canonical time boundaries", {
