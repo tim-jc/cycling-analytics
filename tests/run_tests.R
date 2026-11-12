@@ -301,6 +301,50 @@ run_test("dashboard shell constrains mobile flex content and wrapping", {
   expect_true(!grepl("body {\n  overflow-x: hidden", css_source, fixed = TRUE))
 })
 
+run_test("dashboard provides page-specific intermediate-width layouts", {
+  css_source <- paste(
+    readLines("assets/dashboard.css", warn = FALSE),
+    collapse = "\n"
+  )
+  dashboard_source <- paste(
+    readLines("dashboards/index.Rmd", warn = FALSE),
+    collapse = "\n"
+  )
+
+  expect_true(grepl(
+    "@media (min-width: 768px) and (max-width: 1199px)",
+    css_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(".tablet-summary-metrics", css_source, fixed = TRUE))
+  expect_true(grepl(".tablet-trends-metrics", css_source, fixed = TRUE))
+  expect_true(grepl(".tablet-best-efforts-detail", css_source, fixed = TRUE))
+  expect_true(grepl("flex-wrap: wrap", css_source, fixed = TRUE))
+  expect_true(grepl("min-width: 0", css_source, fixed = TRUE))
+  expect_true(grepl("tablet-latest-overview", dashboard_source, fixed = TRUE))
+  expect_true(grepl("tablet-summary-metrics", dashboard_source, fixed = TRUE))
+  expect_true(grepl("tablet-trends-metrics", dashboard_source, fixed = TRUE))
+  expect_true(!grepl("body {\n  overflow-x: hidden", css_source, fixed = TRUE))
+})
+
+run_test("mobile page navigation closes the existing collapse", {
+  shell_source <- paste(
+    readLines("assets/dashboard-shell.js", warn = FALSE),
+    collapse = "\n"
+  )
+
+  expect_true(grepl("installMobileNavigationClose", shell_source, fixed = TRUE))
+  expect_true(grepl("(max-width: 767px)", shell_source, fixed = TRUE))
+  expect_true(grepl('collapse.addEventListener("click"', shell_source, fixed = TRUE))
+  expect_true(grepl('event.target.closest', shell_source, fixed = TRUE))
+  expect_true(grepl('.navbar-nav a[href^="#"]', shell_source, fixed = TRUE))
+  expect_true(grepl('.collapse("hide")', shell_source, fixed = TRUE))
+  expect_true(grepl('hidden.bs.collapse', shell_source, fixed = TRUE))
+  expect_true(grepl('toggle.focus()', shell_source, fixed = TRUE))
+  expect_true(grepl('toggle.setAttribute("aria-expanded", "false")', shell_source, fixed = TRUE))
+  expect_true(grepl('collapse.classList.remove("in", "show")', shell_source, fixed = TRUE))
+})
+
 run_test("container logging defaults to stdout without a log file", {
   withr::local_envvar(c(
     DASHBOARD_LOG = NA,

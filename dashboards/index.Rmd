@@ -185,7 +185,7 @@ dashboard_stage("Load data", {
 Latest Ride
 =====================================
 
-Row {data-height=120}
+Row {.tablet-latest-overview data-height=120}
 -----------------------------------------------------------------------
 
 ### Ride overview
@@ -234,7 +234,7 @@ latest_ride_value_box(
 )
 ```
 
-Row {data-height=108}
+Row {.tablet-latest-metrics data-height=108}
 -----------------------------------------------------------------------
 
 ### Average power
@@ -313,7 +313,7 @@ latest_ride_highlights(latest_ride_rankings)
 Summary
 ===================================== 
 
-Row
+Row {.tablet-summary-metrics}
 -----------------------------------------------------------------------
 
 ### `r build_dashboard_refresh_summary()`
@@ -385,7 +385,7 @@ draw_critical_metric_curve("power", con)
 Best Efforts
 ===================================== 
 
-Row {data-height=95}
+Row {.tablet-best-efforts-summary data-height=95}
 -----------------------------------------------------------------------
 
 ###
@@ -412,7 +412,7 @@ get_best_effort_valuebox(best_power_efforts, 1800)
 get_best_effort_valuebox(best_power_efforts, 3600)
 ```
 
-Row {data-height=840}
+Row {.tablet-best-efforts-detail data-height=840}
 -----------------------------------------------------------------------
 
 ###
@@ -442,7 +442,7 @@ draw_best_effort_detail(best_power_effort_streams, best_power_efforts, 3600)
 Trends
 ===================================== 
 
-Row {data-height=150}
+Row {.tablet-trends-metrics data-height=150}
 -----------------------------------------------------------------------
 
 ### Latest outdoor ride

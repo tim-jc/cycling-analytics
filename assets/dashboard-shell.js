@@ -51,6 +51,44 @@
     if (toggle) {
       toggle.setAttribute("aria-label", "Toggle dashboard navigation");
     }
+
+    installMobileNavigationClose(navbar, toggle);
+  }
+
+  function installMobileNavigationClose(navbar, toggle) {
+    var collapse = navbar.querySelector(".navbar-collapse");
+
+    if (!collapse || !toggle || collapse.dataset.pageCloseInstalled) {
+      return;
+    }
+
+    collapse.dataset.pageCloseInstalled = "true";
+
+    collapse.addEventListener("click", function (event) {
+      var link = event.target.closest('.navbar-nav a[href^="#"]');
+      var isCompactNavigation = window.matchMedia("(max-width: 767px)").matches;
+      var isExpanded = collapse.classList.contains("in") ||
+        collapse.classList.contains("show");
+
+      if (!link || !collapse.contains(link) || !isCompactNavigation || !isExpanded) {
+        return;
+      }
+
+      if (window.jQuery && typeof window.jQuery.fn.collapse === "function") {
+        window.jQuery(collapse).one("hidden.bs.collapse", function () {
+          window.setTimeout(function () {
+            toggle.focus();
+          }, 0);
+        });
+        window.jQuery(collapse).collapse("hide");
+      } else {
+        collapse.classList.remove("in", "show");
+        collapse.setAttribute("aria-expanded", "false");
+        toggle.classList.add("collapsed");
+        toggle.setAttribute("aria-expanded", "false");
+        toggle.focus();
+      }
+    });
   }
 
   if (document.readyState === "loading") {

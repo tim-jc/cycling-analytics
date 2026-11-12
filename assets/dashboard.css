@@ -197,6 +197,59 @@ button:focus-visible,
   overflow-x: clip;
 }
 
+/*
+ * Flexdashboard changes to its desktop row layout at 768px, but the metric
+ * rows stop overflowing near 1024px; the four-up telemetry panels do not
+ * have a useful inspection width until the dashboard reaches 1200px.
+ * Keep the accepted phone and desktop arrangements, and give the affected
+ * tablet rows an explicit, page-specific grid in between.
+ */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .tablet-latest-overview,
+  .tablet-latest-metrics,
+  .tablet-summary-metrics,
+  .tablet-best-efforts-summary,
+  .tablet-best-efforts-detail,
+  .tablet-trends-metrics {
+    align-content: stretch;
+    flex: none !important;
+    flex-wrap: wrap;
+    height: auto !important;
+  }
+
+  .tablet-latest-overview > .value-box,
+  .tablet-latest-metrics > .value-box,
+  .tablet-summary-metrics > .value-box,
+  .tablet-best-efforts-summary > .value-box,
+  .tablet-best-efforts-detail > .chart-wrapper,
+  .tablet-trends-metrics > .value-box {
+    min-width: 0;
+  }
+
+  .tablet-latest-overview > .value-box {
+    flex: 0 0 calc(33.333% - 8px) !important;
+  }
+
+  .tablet-latest-overview > #ride-overview {
+    flex-basis: calc(66.666% - 8px) !important;
+  }
+
+  .tablet-latest-metrics > .value-box,
+  .tablet-best-efforts-summary > .value-box,
+  .tablet-trends-metrics > .value-box {
+    flex: 0 0 calc(50% - 8px) !important;
+  }
+
+  .tablet-summary-metrics > .value-box {
+    flex: 0 0 calc(33.333% - 8px) !important;
+  }
+
+  .tablet-best-efforts-detail > .chart-wrapper {
+    flex: 0 0 calc(50% - 8px) !important;
+    min-height: 520px;
+  }
+}
+
 @media (max-width: 767px) {
   .dashboard-column-orientation > .dashboard-column {
     min-width: 0;
