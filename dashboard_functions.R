@@ -1439,14 +1439,22 @@ draw_weekly_training_volume <- function(
     plotly::add_lines(
       x = weekly_totals$week_start,
       y = four_week_average,
+      name = "4-week rolling average",
       line = list(color = PLOTLY_COPPER, width = 2),
       hoverinfo = "skip",
-      showlegend = FALSE
+      showlegend = TRUE
     ) |>
     plotly::layout(
-      showlegend = FALSE,
-      margin = list(l = 55, r = 20, t = 10, b = 45),
+      showlegend = TRUE,
+      margin = list(l = 55, r = 20, t = 38, b = 45),
       hovermode = "closest",
+      legend = list(
+        orientation = "h",
+        x = 1,
+        xanchor = "right",
+        y = 1.08,
+        yanchor = "bottom"
+      ),
       xaxis = list(
         title = "",
         tickformat = "%d %b",
@@ -1473,17 +1481,32 @@ draw_ytd_curve <- function(metric_to_plot, ytd_stats) {
       activity_url = str_glue("https://www.strava.com/activities/{activity_id}")
     )
 
+  year_key <- ytd_tbl |>
+    distinct(yr_lbl, yr) |>
+    arrange(match(yr_lbl, c("pytd", "ytd"))) |>
+    mutate(colour = if_else(
+      yr_lbl == "ytd",
+      PLOTLY_COPPER,
+      PLOTLY_SURVEY_BLUE
+    ))
+  year_levels <- as.character(year_key$yr)
+  year_colours <- setNames(
+    year_key$colour,
+    year_levels
+  )
+  ytd_tbl <- ytd_tbl |>
+    mutate(
+      comparison_year = factor(as.character(yr), levels = year_levels)
+    )
+
   ytd_curve <- ytd_tbl |>
-    ggplot(aes(x = yr_day, y = value, colour = yr_lbl)) +
+    ggplot(aes(x = yr_day, y = value, colour = comparison_year)) +
     geom_step(alpha = 0.9) +
     theme_minimal() +
-    scale_colour_manual(values = c(
-      "pytd" = PLOTLY_SURVEY_BLUE,
-      "ytd" = PLOTLY_COPPER
-    )) +
+    scale_colour_manual(values = year_colours) +
     scale_y_continuous(labels = format_compact_axis_label) +
-    theme(legend.position = "none", axis.text.x = element_blank()) +
-    labs(x = "", y = "")
+    theme(legend.position = "top", axis.text.x = element_blank()) +
+    labs(x = "", y = "", colour = NULL)
 
   if (metric_to_plot == "ytd_tons") {
     ytd_curve <- ytd_curve +
@@ -1495,7 +1518,7 @@ draw_ytd_curve <- function(metric_to_plot, ytd_stats) {
   } else {
     predicted_miles <- ytd_tbl |>
       mutate(value = (value / yr_day) * 365) |>
-      select(yr, yr_lbl, yr_day, value) |>
+      select(yr, yr_lbl, comparison_year, yr_day, value) |>
       group_by(yr) |>
       filter(yr_day == max(yr_day) | yr_day == 1) |>
       mutate(
@@ -1513,7 +1536,36 @@ draw_ytd_curve <- function(metric_to_plot, ytd_stats) {
       )
   }
 
+  projection_annotation <- if (metric_to_plot == "ytd_tons") {
+    list()
+  } else {
+    list(list(
+      text = "Dashed = projected",
+      x = 1,
+      y = 1.12,
+      xref = "paper",
+      yref = "paper",
+      xanchor = "right",
+      yanchor = "bottom",
+      showarrow = FALSE,
+      font = list(color = PLOTLY_MUTED_INK, size = 11)
+    ))
+  }
+
   ytd_curve <- plotly::ggplotly(ytd_curve, tooltip = "text") |>
+    plotly::layout(
+      showlegend = TRUE,
+      margin = list(t = 42),
+      legend = list(
+        orientation = "h",
+        x = 0,
+        xanchor = "left",
+        y = 1.12,
+        yanchor = "bottom",
+        title = list(text = "")
+      ),
+      annotations = projection_annotation
+    ) |>
     apply_navigation_instrument_plotly()
 
   # Render custom JS
@@ -1730,13 +1782,27 @@ draw_critical_metric_curve <- function(metric_to_plot, con) {
       "Last year" = PLOTLY_MUTED_INK
     )) +
     theme_minimal() +
-    theme(legend.position = "none") +
+    theme(legend.position = "top") +
     labs(
       x = "",
-      y = str_glue("{str_to_title(metric_to_plot)} /{local(units$units)}\n")
+      y = str_glue("{str_to_title(metric_to_plot)} /{local(units$units)}\n"),
+      colour = NULL,
+      fill = NULL
     )
 
   peaks_plot <- plotly::ggplotly(peaks_plot, tooltip = "text") |>
+    plotly::layout(
+      showlegend = TRUE,
+      margin = list(t = 42),
+      legend = list(
+        orientation = "h",
+        x = 0,
+        xanchor = "left",
+        y = 1.12,
+        yanchor = "bottom",
+        title = list(text = "")
+      )
+    ) |>
     apply_navigation_instrument_plotly()
 
   # Render custom JS

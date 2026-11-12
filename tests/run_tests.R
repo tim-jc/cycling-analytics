@@ -610,12 +610,12 @@ run_test("dark Plotly charts use explicit Navigation Instrument trace hierarchy"
   expect_equal(PLOTLY_COPPER, "#D18B58")
   expect_equal(PLOTLY_SURVEY_BLUE, "#8BA9B7")
   expect_true(grepl(
-    '"pytd" = PLOTLY_SURVEY_BLUE',
+    'yr_lbl == "ytd"',
     dashboard_source,
     fixed = TRUE
   ))
   expect_true(grepl(
-    '"ytd" = PLOTLY_COPPER',
+    "PLOTLY_SURVEY_BLUE",
     dashboard_source,
     fixed = TRUE
   ))
@@ -649,6 +649,142 @@ run_test("dark Plotly charts use explicit Navigation Instrument trace hierarchy"
   expect_equal(power_curve$x$data[[1]]$line$color, PLOTLY_COPPER)
   expect_equal(power_curve$x$data[[1]]$marker$color, PLOTLY_SURVEY_BLUE)
   expect_equal(power_curve$x$layout$plot_bgcolor, PLOTLY_CANVAS_DARK)
+})
+
+run_test("year comparisons expose years without changing observed or projected data", {
+  current_year <- lubridate::year(Sys.Date())
+  previous_year <- current_year - 1L
+  fixture <- dplyr::bind_rows(
+    tibble::tibble(
+      yr_lbl = "pytd",
+      yr = previous_year,
+      yr_day = c(1, 90, 180),
+      metric_value = c(0, 900, 2100)
+    ),
+    tibble::tibble(
+      yr_lbl = "ytd",
+      yr = current_year,
+      yr_day = c(1, 90, 180),
+      metric_value = c(0, 1050, 2450)
+    )
+  ) |>
+    dplyr::mutate(
+      activity_id = dplyr::row_number(),
+      start_date_local = as.Date(sprintf("%d-01-01", .data$yr)) +
+        .data$yr_day - 1,
+      ytd_distance_mi = .data$metric_value,
+      ytd_elevation_m = .data$metric_value * 10,
+      ytd_tons = floor(.data$metric_value / 100),
+      ytd_val = TRUE,
+      is_ton_day = FALSE
+    ) |>
+    dplyr::select(-"metric_value")
+
+  built <- draw_ytd_curve("ytd_distance_mi", fixture) |>
+    plotly::plotly_build()
+
+  expect_equal(length(built$x$data), 6L)
+  expect_equal(
+    vapply(built$x$data[1:2], `[[`, character(1), "name"),
+    as.character(c(previous_year, current_year))
+  )
+  expect_equal(
+    vapply(built$x$data[3:4], function(trace) trace$line$dash, character(1)),
+    c("dash", "dash")
+  )
+  expect_equal(as.numeric(built$x$data[[1]]$y), c(0, 900, 2100))
+  expect_equal(as.numeric(built$x$data[[2]]$y), c(0, 1050, 2450))
+  expect_equal(as.numeric(built$x$data[[3]]$x), c(1, 365))
+  expect_equal(as.numeric(built$x$data[[4]]$x), c(1, 365))
+  expect_equal(
+    as.numeric(built$x$data[[3]]$y),
+    c(0, (2100 / 180) * 365)
+  )
+  expect_equal(
+    as.numeric(built$x$data[[4]]$y),
+    c(0, (2450 / 180) * 365)
+  )
+  expect_true(isTRUE(built$x$layout$showlegend))
+  expect_equal(built$x$layout$annotations[[1]]$text, "Dashed = projected")
+})
+
+run_test("weekly volume identifies its unchanged four-week rolling average", {
+  fixture <- tibble::tibble(
+    start_date_local = seq.Date(Sys.Date() - 84, Sys.Date(), by = "7 days"),
+    distance_mi = seq(30, 66, length.out = 13),
+    moving_time_hr = distance_mi / 15,
+    energy_kilojoules = distance_mi * 25,
+    elevation_gain_m = distance_mi * 10
+  )
+  weekly <- build_weekly_training_volume(fixture)
+  expected_average <- vapply(
+    seq_len(nrow(weekly)),
+    function(index) {
+      mean(weekly$distance_mi[seq.int(max(1, index - 3), index)])
+    },
+    numeric(1)
+  )
+  built <- draw_weekly_training_volume(fixture, "distance_mi") |>
+    plotly::plotly_build()
+
+  expect_equal(length(built$x$data), 2L)
+  expect_equal(built$x$data[[2]]$name, "4-week rolling average")
+  expect_true(isTRUE(built$x$data[[2]]$showlegend))
+  expect_equal(as.numeric(built$x$data[[2]]$y), expected_average)
+  expect_true(isTRUE(built$x$layout$showlegend))
+})
+
+run_test("Critical Power exposes its existing period labels and values", {
+  suppressPackageStartupMessages(library(DBI))
+  if (!methods::isClass("TestPeakConnection")) {
+    methods::setClass(
+      "TestPeakConnection",
+      contains = "DBIConnection",
+      slots = c(rows = "data.frame")
+    )
+    methods::setMethod(
+      "dbGetQuery",
+      signature(conn = "TestPeakConnection", statement = "character"),
+      function(conn, statement, ...) conn@rows
+    )
+  }
+  current_year <- lubridate::year(Sys.Date())
+  rows <- tidyr::expand_grid(
+    activity_id = 1:2,
+    duration_seconds = c(5, 60, 300)
+  ) |>
+    dplyr::mutate(
+      start_date_local = as.POSIXct(dplyr::if_else(
+        .data$activity_id == 1,
+        sprintf("%d-06-01", current_year),
+        sprintf("%d-06-01", current_year - 1L)
+      ), tz = "UTC"),
+      sport_type = "Ride",
+      metric_name = "watts",
+      peak_value = 1000 / log10(.data$duration_seconds + 10) -
+        .data$activity_id * 5,
+      peak_period = "All time"
+    ) |>
+    as.data.frame()
+  connection <- methods::new("TestPeakConnection", rows = rows)
+  built <- draw_critical_metric_curve("power", connection) |>
+    plotly::plotly_build()
+
+  expect_equal(length(built$x$data), 6L)
+  expect_equal(
+    vapply(built$x$data[1:3], `[[`, character(1), "name"),
+    c("All time", "Current year", "Last year")
+  )
+  expect_true(all(vapply(
+    built$x$data[1:3],
+    function(trace) isTRUE(trace$showlegend),
+    logical(1)
+  )))
+  expect_true(isTRUE(built$x$layout$showlegend))
+  expect_equal(
+    sort(as.numeric(built$x$data[[2]]$y)),
+    sort(rows$peak_value[rows$activity_id == 1])
+  )
 })
 
 run_test("presentation components expose semantic surface states", {
