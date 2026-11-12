@@ -385,7 +385,7 @@ run_test("TBR focus buttons reset native and framework presentation", {
   identity_environment <- new.env(parent = globalenv())
   sys.source("dashboard_identity.R", envir = identity_environment)
 
-  expect_equal(identity_environment$DASHBOARD_IDENTITY_VERSION, "1.0.2")
+  expect_equal(identity_environment$DASHBOARD_IDENTITY_VERSION, "1.0.3")
   expect_true(grepl("-webkit-appearance: none", css_source, fixed = TRUE))
   expect_true(grepl("appearance: none", css_source, fixed = TRUE))
   expect_true(grepl("border-radius: 0", css_source, fixed = TRUE))
@@ -426,6 +426,8 @@ run_test("value boxes use Navigation Instrument hierarchy and resilient text", {
   expect_true(grepl(".value-box .caption", css_source, fixed = TRUE))
   expect_true(grepl(".value-box .icon i", css_source, fixed = TRUE))
   expect_true(grepl("color: var(--ptg-survey-blue) !important", css_source, fixed = TRUE))
+  expect_true(grepl("font-size: 32px", css_source, fixed = TRUE))
+  expect_true(grepl("max-width: calc(100% - 44px)", css_source, fixed = TRUE))
   expect_true(grepl("overflow-wrap: anywhere", css_source, fixed = TRUE))
   expect_true(grepl("white-space: normal", css_source, fixed = TRUE))
   expect_true(!grepl("#EDF0F1", value_box_sources, fixed = TRUE))
