@@ -1,5 +1,5 @@
 DASHBOARD_IDENTITY_NAME <- "past-the-grid-identity"
-DASHBOARD_IDENTITY_VERSION <- "1.0.4"
+DASHBOARD_IDENTITY_VERSION <- "1.0.5"
 
 dashboard_identity_dependency <- function(project_root) {
   dependency_dir <- file.path(project_root, "assets")

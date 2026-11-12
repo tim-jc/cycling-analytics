@@ -349,6 +349,15 @@ a.value-box-link:focus-visible {
   border-color: var(--ptg-copper);
 }
 
+.plotly .modebar-btn path {
+  fill: var(--ptg-line) !important;
+}
+
+.plotly .modebar-btn:hover path,
+.plotly .modebar-btn.active path {
+  fill: var(--ptg-copper) !important;
+}
+
 #latest-ride #ride-overview .value {
   font-size: 22px;
   line-height: 1.1;

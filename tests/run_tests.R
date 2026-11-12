@@ -412,7 +412,7 @@ run_test("TBR focus buttons reset native and framework presentation", {
   identity_environment <- new.env(parent = globalenv())
   sys.source("dashboard_identity.R", envir = identity_environment)
 
-  expect_equal(identity_environment$DASHBOARD_IDENTITY_VERSION, "1.0.4")
+  expect_equal(identity_environment$DASHBOARD_IDENTITY_VERSION, "1.0.5")
   expect_true(grepl("-webkit-appearance: none", css_source, fixed = TRUE))
   expect_true(grepl("appearance: none", css_source, fixed = TRUE))
   expect_true(grepl("border-radius: 0", css_source, fixed = TRUE))
@@ -490,6 +490,104 @@ run_test("linked value boxes become native accessible anchors", {
   expect_true(!grepl("tabindex", shell_source, fixed = TRUE))
   expect_true(grepl("a.value-box-link:hover", css_source, fixed = TRUE))
   expect_true(grepl("a.value-box-link:focus-visible", css_source, fixed = TRUE))
+})
+
+run_test("Navigation Instrument Plotly defaults preserve analytical semantics", {
+  original <- plotly::plot_ly(
+    x = c(1, 10, 100),
+    y = c(100, 200, 300),
+    type = "scatter",
+    mode = "lines+markers",
+    line = list(color = "#123456", width = 3),
+    marker = list(color = "#ABCDEF", size = 7),
+    hovertemplate = "%{x}: %{y} W<extra></extra>",
+    name = "Power"
+  ) |>
+    plotly::layout(
+      hovermode = "closest",
+      margin = list(l = 51, r = 17, t = 11, b = 43),
+      xaxis = list(
+        type = "log",
+        range = c(0, 2),
+        title = "Duration",
+        tickformat = ".1f",
+        zeroline = FALSE
+      ),
+      yaxis = list(
+        range = c(0, 350),
+        title = "Power (W)",
+        rangemode = "tozero"
+      ),
+      annotations = list(list(text = "Threshold", x = 1, y = 200)),
+      shapes = list(list(type = "line", x0 = 1, x1 = 100, y0 = 250, y1 = 250)),
+      legend = list(x = 0.25, y = 0.9)
+    )
+  before <- plotly::plotly_build(original)
+  after <- plotly::plotly_build(apply_navigation_instrument_plotly(original))
+
+  expect_equal(length(after$x$data), length(before$x$data))
+  expect_equal(after$x$data[[1]]$type, before$x$data[[1]]$type)
+  expect_equal(after$x$data[[1]]$mode, before$x$data[[1]]$mode)
+  expect_equal(after$x$data[[1]]$line, before$x$data[[1]]$line)
+  expect_equal(after$x$data[[1]]$marker, before$x$data[[1]]$marker)
+  expect_equal(after$x$data[[1]]$hovertemplate, before$x$data[[1]]$hovertemplate)
+  expect_equal(after$x$layout$xaxis$type, before$x$layout$xaxis$type)
+  expect_equal(after$x$layout$xaxis$range, before$x$layout$xaxis$range)
+  expect_equal(after$x$layout$xaxis$title, before$x$layout$xaxis$title)
+  expect_equal(after$x$layout$xaxis$tickformat, before$x$layout$xaxis$tickformat)
+  expect_equal(after$x$layout$xaxis$zeroline, FALSE)
+  expect_equal(after$x$layout$yaxis$range, before$x$layout$yaxis$range)
+  expect_equal(after$x$layout$yaxis$title, before$x$layout$yaxis$title)
+  expect_equal(after$x$layout$yaxis$rangemode, before$x$layout$yaxis$rangemode)
+  expect_equal(after$x$layout$annotations, before$x$layout$annotations)
+  expect_equal(after$x$layout$shapes, before$x$layout$shapes)
+  expect_equal(after$x$layout$margin, before$x$layout$margin)
+  expect_equal(after$x$layout$hovermode, before$x$layout$hovermode)
+  expect_equal(after$x$layout$legend$x, before$x$layout$legend$x)
+  expect_equal(after$x$layout$legend$y, before$x$layout$legend$y)
+  expect_equal(after$x$layout$plot_bgcolor, PLOTLY_CANVAS_IVORY)
+  expect_equal(after$x$layout$paper_bgcolor, PLOTLY_CANVAS_IVORY)
+  expect_equal(after$x$layout$font$color, PLOTLY_MIDNIGHT_INK)
+  expect_equal(after$x$layout$xaxis$gridcolor, PLOTLY_GRID_LINE)
+  expect_equal(after$x$layout$hoverlabel$bgcolor, PLOTLY_MIDNIGHT_INK)
+  expect_equal(after$x$layout$hoverlabel$font$color, PLOTLY_CANVAS_IVORY)
+})
+
+run_test("dashboard Plotly paths use the shared presentation helper", {
+  dashboard_source <- paste(
+    readLines("dashboard_functions.R", warn = FALSE),
+    collapse = "\n"
+  )
+  latest_source <- paste(
+    readLines("latest_ride_functions.R", warn = FALSE),
+    collapse = "\n"
+  )
+  tbr_source <- paste(
+    readLines("tbr_functions.R", warn = FALSE),
+    collapse = "\n"
+  )
+  css_source <- paste(
+    readLines("assets/dashboard.css", warn = FALSE),
+    collapse = "\n"
+  )
+
+  expect_true(length(gregexpr(
+    "apply_navigation_instrument_plotly()",
+    dashboard_source,
+    fixed = TRUE
+  )[[1]]) >= 5L)
+  expect_true(length(gregexpr(
+    "apply_navigation_instrument_plotly()",
+    latest_source,
+    fixed = TRUE
+  )[[1]]) >= 3L)
+  expect_true(grepl(
+    "apply_navigation_instrument_plotly()",
+    tbr_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(".plotly .modebar-btn path", css_source, fixed = TRUE))
+  expect_true(grepl("fill: var(--ptg-copper) !important", css_source, fixed = TRUE))
 })
 
 run_test("presentation components expose semantic surface states", {

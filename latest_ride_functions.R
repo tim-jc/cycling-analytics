@@ -358,7 +358,8 @@ draw_latest_ride_trace <- function(streams, metric, label, units, colour) {
       yaxis = list(title = units, rangemode = "tozero"),
       margin = list(l = 48, r = 15, b = 42, t = 10),
       showlegend = FALSE
-    )
+    ) |>
+    apply_navigation_instrument_plotly()
 }
 
 prepare_latest_ride_route <- function(streams) {
@@ -515,7 +516,8 @@ draw_latest_ride_power_curve <- function(efforts) {
       yaxis = list(title = "Best power (W)", rangemode = "tozero"),
       margin = list(l = 55, r = 15, b = 45, t = 10),
       showlegend = FALSE
-    )
+    ) |>
+    apply_navigation_instrument_plotly()
 }
 
 get_latest_ride_hr_max <- function() {
@@ -587,7 +589,8 @@ draw_latest_ride_hr_zones <- function(
       yaxis = list(title = "", autorange = "reversed"),
       margin = list(l = 40, r = 15, b = 42, t = 10),
       showlegend = FALSE
-    )
+    ) |>
+    apply_navigation_instrument_plotly()
 }
 
 ordinal <- function(value) {

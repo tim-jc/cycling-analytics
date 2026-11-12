@@ -12,6 +12,70 @@ peaks_units <- tibble::tribble(
 
 # Functions
 
+# Canonical Navigation Instrument colours used inside Plotly's serialized
+# layout, where CSS custom properties are not available.
+PLOTLY_CANVAS_IVORY <- "#F1EFE7"
+PLOTLY_MIDNIGHT_INK <- "#172630"
+PLOTLY_MUTED_INK <- "#435965"
+PLOTLY_GRID_LINE <- "#D8D4C9"
+PLOTLY_AXIS_LINE <- "#A9A59B"
+
+apply_navigation_instrument_plotly <- function(plot) {
+  layout_axis_names <- unique(c(
+    names(plot$x$layout),
+    unlist(
+      lapply(plot$x$layoutAttrs, names),
+      use.names = FALSE
+    )
+  ))
+  axis_names <- unique(c(
+    "xaxis",
+    "yaxis",
+    grep("^[xy]axis[0-9]+$", layout_axis_names, value = TRUE)
+  ))
+  axis_style <- list(
+    gridcolor = PLOTLY_GRID_LINE,
+    gridwidth = 1,
+    linecolor = PLOTLY_AXIS_LINE,
+    tickcolor = PLOTLY_AXIS_LINE,
+    tickfont = list(color = PLOTLY_MUTED_INK),
+    zerolinecolor = PLOTLY_AXIS_LINE
+  )
+  axis_layout <- stats::setNames(
+    rep(list(axis_style), length(axis_names)),
+    axis_names
+  )
+  shared_layout <- c(
+    list(
+      plot_bgcolor = PLOTLY_CANVAS_IVORY,
+      paper_bgcolor = PLOTLY_CANVAS_IVORY,
+      font = list(
+        family = "Avenir Next, Avenir, Segoe UI, sans-serif",
+        color = PLOTLY_MIDNIGHT_INK
+      ),
+      legend = list(
+        bgcolor = "rgba(241, 239, 231, 0.92)",
+        bordercolor = PLOTLY_GRID_LINE,
+        font = list(
+          family = "Avenir Next, Avenir, Segoe UI, sans-serif",
+          color = PLOTLY_MIDNIGHT_INK
+        )
+      ),
+      hoverlabel = list(
+        bgcolor = PLOTLY_MIDNIGHT_INK,
+        bordercolor = "#8BA9B7",
+        font = list(
+          family = "Avenir Next, Avenir, Segoe UI, sans-serif",
+          color = PLOTLY_CANVAS_IVORY
+        )
+      )
+    ),
+    axis_layout
+  )
+
+  do.call(plotly::layout, c(list(p = plot), shared_layout))
+}
+
 carto_basemap_api_key <- function() {
   api_key <- Sys.getenv("CARTO_BASEMAP_API_KEY", unset = "")
 
@@ -1055,7 +1119,8 @@ draw_best_effort_telemetry <- function(
         showticklabels = nrow(elevation_streams) >= 2 &&
           effort$sport_type != "VirtualRide"
       )
-    )
+    ) |>
+    apply_navigation_instrument_plotly()
 }
 
 draw_best_effort_placeholder <- function(title, detail, min_height = "320px") {
@@ -1243,7 +1308,8 @@ draw_rolling_activity_curve <- function(activity_summary, window_days = 28) {
     plotly::layout(
       xaxis = list(title = ""),
       yaxis = list(title = str_glue("{window_days}d miles"))
-    )
+    ) |>
+    apply_navigation_instrument_plotly()
 }
 
 build_weekly_training_volume <- function(
@@ -1384,7 +1450,8 @@ draw_weekly_training_volume <- function(
         dtick = 14 * 24 * 60 * 60 * 1000
       ),
       yaxis = list(title = unit, rangemode = "tozero")
-    )
+    ) |>
+    apply_navigation_instrument_plotly()
 }
 
 draw_ytd_curve <- function(metric_to_plot, ytd_stats) {
@@ -1440,7 +1507,8 @@ draw_ytd_curve <- function(metric_to_plot, ytd_stats) {
       )
   }
 
-  ytd_curve <- plotly::ggplotly(ytd_curve, tooltip = "text")
+  ytd_curve <- plotly::ggplotly(ytd_curve, tooltip = "text") |>
+    apply_navigation_instrument_plotly()
 
   # Render custom JS
   ytd_curve <- ytd_curve |>
@@ -1652,7 +1720,8 @@ draw_critical_metric_curve <- function(metric_to_plot, con) {
       y = str_glue("{str_to_title(metric_to_plot)} /{local(units$units)}\n")
     )
 
-  peaks_plot <- plotly::ggplotly(peaks_plot, tooltip = "text")
+  peaks_plot <- plotly::ggplotly(peaks_plot, tooltip = "text") |>
+    apply_navigation_instrument_plotly()
 
   # Render custom JS
   peaks_plot <- peaks_plot %>%

@@ -229,7 +229,8 @@ draw_tbr_calendar <- function(calendar) {
     )
 
   plotly::ggplotly(chart, tooltip = "text") |>
-    plotly::layout(margin = list(l = 45, r = 15, b = 35, t = 10))
+    plotly::layout(margin = list(l = 45, r = 15, b = 35, t = 10)) |>
+    apply_navigation_instrument_plotly()
 }
 
 build_tbr_milestones <- function(activities) {
