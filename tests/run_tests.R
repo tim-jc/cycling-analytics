@@ -385,7 +385,7 @@ run_test("TBR focus buttons reset native and framework presentation", {
   identity_environment <- new.env(parent = globalenv())
   sys.source("dashboard_identity.R", envir = identity_environment)
 
-  expect_equal(identity_environment$DASHBOARD_IDENTITY_VERSION, "1.0.1")
+  expect_equal(identity_environment$DASHBOARD_IDENTITY_VERSION, "1.0.2")
   expect_true(grepl("-webkit-appearance: none", css_source, fixed = TRUE))
   expect_true(grepl("appearance: none", css_source, fixed = TRUE))
   expect_true(grepl("border-radius: 0", css_source, fixed = TRUE))
@@ -402,6 +402,57 @@ run_test("TBR focus buttons reset native and framework presentation", {
     css_source,
     fixed = TRUE
   ))
+})
+
+run_test("value boxes use Navigation Instrument hierarchy and resilient text", {
+  css_source <- paste(
+    readLines("assets/dashboard.css", warn = FALSE),
+    collapse = "\n"
+  )
+  value_box_sources <- paste(
+    unlist(lapply(
+      c(
+        "dashboard_functions.R",
+        "latest_ride_functions.R",
+        "dashboards/index.Rmd"
+      ),
+      readLines,
+      warn = FALSE
+    )),
+    collapse = "\n"
+  )
+
+  expect_true(grepl(".value-box .value", css_source, fixed = TRUE))
+  expect_true(grepl(".value-box .caption", css_source, fixed = TRUE))
+  expect_true(grepl(".value-box .icon i", css_source, fixed = TRUE))
+  expect_true(grepl("color: var(--ptg-survey-blue) !important", css_source, fixed = TRUE))
+  expect_true(grepl("overflow-wrap: anywhere", css_source, fixed = TRUE))
+  expect_true(grepl("white-space: normal", css_source, fixed = TRUE))
+  expect_true(!grepl("#EDF0F1", value_box_sources, fixed = TRUE))
+})
+
+run_test("linked value boxes become native accessible anchors", {
+  shell_source <- paste(
+    readLines("assets/dashboard-shell.js", warn = FALSE),
+    collapse = "\n"
+  )
+  css_source <- paste(
+    readLines("assets/dashboard.css", warn = FALSE),
+    collapse = "\n"
+  )
+
+  expect_true(grepl("annotateLinkedValueBoxes", shell_source, fixed = TRUE))
+  expect_true(grepl("promoteLinkedValueBoxes", shell_source, fixed = TRUE))
+  expect_true(grepl(".value-output[data-href]", shell_source, fixed = TRUE))
+  expect_true(grepl("document.createElement('a')", shell_source, fixed = TRUE))
+  expect_true(grepl("flexdashboard:layoutcomplete", shell_source, fixed = TRUE))
+  expect_true(grepl("link.href = href", shell_source, fixed = TRUE))
+  expect_true(grepl("link.target = '_blank'", shell_source, fixed = TRUE))
+  expect_true(grepl("noopener noreferrer", shell_source, fixed = TRUE))
+  expect_true(!grepl("role = 'button'", shell_source, fixed = TRUE))
+  expect_true(!grepl("tabindex", shell_source, fixed = TRUE))
+  expect_true(grepl("a.value-box-link:hover", css_source, fixed = TRUE))
+  expect_true(grepl("a.value-box-link:focus-visible", css_source, fixed = TRUE))
 })
 
 run_test("presentation components expose semantic surface states", {

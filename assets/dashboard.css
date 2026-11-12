@@ -307,13 +307,42 @@ body {
   background: var(--ptg-surface) !important;
   border: 1px solid var(--ptg-line);
   color: var(--ptg-ink) !important;
+  min-width: 0;
 }
 
-.value-box .value,
-.value-box .caption,
-.value-box .icon,
-.value-box a {
+.value-box .value {
   color: var(--ptg-ink) !important;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.value-box .caption {
+  color: var(--ptg-muted) !important;
+}
+
+.value-box .icon i {
+  color: var(--ptg-survey-blue) !important;
+  opacity: .28;
+}
+
+a.value-box-link {
+  border-color: var(--ptg-survey-blue);
+  color: var(--ptg-ink);
+  text-decoration: none;
+}
+
+a.value-box-link:hover {
+  background: var(--ptg-midnight) !important;
+  border-color: var(--ptg-copper);
+  box-shadow: none;
+  color: var(--ptg-ink);
+  text-decoration: none;
+}
+
+a.value-box-link:focus-visible {
+  border-color: var(--ptg-copper);
 }
 
 #latest-ride #ride-overview .value {

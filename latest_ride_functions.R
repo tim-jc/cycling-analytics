@@ -313,7 +313,6 @@ latest_ride_identity <- function(activity) {
       "%A %d %B %Y, %H:%M"
     ),
     icon = "fa-bicycle",
-    color = "#EDF0F1",
     href = link
   )
 }
@@ -322,8 +321,7 @@ latest_ride_value_box <- function(value, caption, icon = "fa-bicycle") {
   flexdashboard::valueBox(
     value,
     caption = caption,
-    icon = icon,
-    color = "#EDF0F1"
+    icon = icon
   )
 }
 

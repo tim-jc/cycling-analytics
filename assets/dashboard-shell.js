@@ -91,9 +91,63 @@
     });
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", installCyclingAnalyticsBrand);
-  } else {
+  function annotateLinkedValueBoxes() {
+    document.querySelectorAll('.value-output[data-href]').forEach(function (output) {
+      var container = output.closest('.section.level3');
+      var href = output.getAttribute('data-href');
+
+      if (container && href) {
+        container.setAttribute('data-ptg-value-box-href', href);
+      }
+    });
+  }
+
+  function promoteLinkedValueBoxes() {
+    document.querySelectorAll('.value-box[data-ptg-value-box-href]').forEach(function (box) {
+      var href = box.getAttribute('data-ptg-value-box-href');
+      var link = document.createElement('a');
+
+      Array.from(box.attributes).forEach(function (attribute) {
+        if (attribute.name !== 'data-ptg-value-box-href') {
+          link.setAttribute(attribute.name, attribute.value);
+        }
+      });
+
+      link.classList.add('value-box-link');
+      link.href = href;
+      if (/^https?:\/\//i.test(href)) {
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+      }
+
+      while (box.firstChild) {
+        link.appendChild(box.firstChild);
+      }
+      box.replaceWith(link);
+    });
+  }
+
+  function installAccessibleValueBoxLinks() {
+    var dashboard = document.getElementById('dashboard-container');
+
+    annotateLinkedValueBoxes();
+    if (window.jQuery && dashboard) {
+      window.jQuery(dashboard).one(
+        'flexdashboard:layoutcomplete',
+        promoteLinkedValueBoxes
+      );
+    }
+    window.setTimeout(promoteLinkedValueBoxes, 0);
+  }
+
+  function installCyclingAnalyticsShell() {
     installCyclingAnalyticsBrand();
+    installAccessibleValueBoxLinks();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", installCyclingAnalyticsShell);
+  } else {
+    installCyclingAnalyticsShell();
   }
 }());

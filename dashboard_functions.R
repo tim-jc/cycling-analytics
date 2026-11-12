@@ -437,8 +437,7 @@ get_ytd_valuebox <- function(
 
   valueBox(
     vals["ytd"],
-    icon = icon_str,
-    color = "#EDF0F1"
+    icon = icon_str
   )
 }
 
@@ -560,13 +559,12 @@ get_latest_ride_valuebox <- function(activity_summary) {
   latest_ride <- select_latest_ride(activity_summary)
 
   if (nrow(latest_ride) == 0) {
-    return(valueBox("No rides", icon = "fa-road", color = "#EDF0F1"))
+    return(valueBox("No rides", icon = "fa-road"))
   }
 
   valueBox(
     str_glue("{round(latest_ride$distance_mi, 1)} mi"),
     icon = "fa-road",
-    color = "#EDF0F1",
     href = str_glue(
       "https://www.strava.com/activities/{latest_ride$activity_id}"
     )
@@ -577,7 +575,7 @@ get_goal_progress_valuebox <- function(ytd_stats) {
   annual_goal_mi <- get_annual_distance_goal_mi(ytd_stats)
 
   if (is.na(annual_goal_mi)) {
-    return(valueBox("No goal", icon = "fa-bullseye", color = "#EDF0F1"))
+    return(valueBox("No goal", icon = "fa-bullseye"))
   }
 
   ytd_distance_mi <- get_ytd_values("distance_mi", ytd_stats)[["ytd"]]
@@ -585,8 +583,7 @@ get_goal_progress_valuebox <- function(ytd_stats) {
 
   valueBox(
     str_glue("{round(goal_progress * 100, 1)}%"),
-    icon = "fa-bullseye",
-    color = "#EDF0F1"
+    icon = "fa-bullseye"
   )
 }
 
@@ -596,8 +593,7 @@ get_goal_pace_valuebox <- function(ytd_stats) {
   if (is.na(annual_goal_mi)) {
     return(valueBox(
       "No goal",
-      icon = "fa-arrows-left-right",
-      color = "#EDF0F1"
+      icon = "fa-arrows-left-right"
     ))
   }
 
@@ -615,8 +611,7 @@ get_goal_pace_valuebox <- function(ytd_stats) {
     str_glue(
       "{round(abs(pace_delta_mi), 0)} mi {if_else(pace_delta_mi >= 0, 'ahead', 'behind')}"
     ),
-    icon = icon_str,
-    color = "#EDF0F1"
+    icon = icon_str
   )
 }
 
@@ -630,7 +625,7 @@ get_ride_mix_valuebox <- function(activity_summary) {
     summarise(distance_mi = sum(distance_mi), .groups = "drop")
 
   if (nrow(split_tbl) == 0 || sum(split_tbl$distance_mi) == 0) {
-    return(valueBox("No rides", icon = "fa-bicycle", color = "#EDF0F1"))
+    return(valueBox("No rides", icon = "fa-bicycle"))
   }
 
   outdoor_mi <- split_tbl |>
@@ -645,8 +640,7 @@ get_ride_mix_valuebox <- function(activity_summary) {
 
   valueBox(
     str_glue("{round(outdoor_mi, 0)} / {round(indoor_mi, 0)} mi"),
-    icon = "fa-bicycle",
-    color = "#EDF0F1"
+    icon = "fa-bicycle"
   )
 }
 
@@ -917,8 +911,7 @@ get_best_effort_valuebox <- function(best_efforts, duration_seconds) {
     return(valueBox(
       "No effort",
       caption = str_glue("{format_effort_duration(duration_seconds)} power"),
-      icon = "fa-bolt",
-      color = "#EDF0F1"
+      icon = "fa-bolt"
     ))
   }
 
@@ -926,7 +919,6 @@ get_best_effort_valuebox <- function(best_efforts, duration_seconds) {
     effort$peak_label,
     caption = str_glue("{effort$duration_label} power"),
     icon = "fa-bolt",
-    color = "#EDF0F1",
     href = effort$activity_url
   )
 }
@@ -1508,7 +1500,6 @@ get_coord_valuebox <- function(pos_needed, position_extremities) {
   vb <- valueBox(
     positions$city_name,
     icon = icon_str,
-    color = "#EDF0F1",
     href = link_str
   )
   return(vb)

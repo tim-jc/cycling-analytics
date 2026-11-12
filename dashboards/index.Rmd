@@ -235,7 +235,7 @@ Row {.tablet-summary-metrics}
 ### `r build_dashboard_refresh_summary()`
 
 ```{r}
-valueBox(format(Sys.time(), "%d %b %y"), color = "#EDF0F1")
+valueBox(format(Sys.time(), "%d %b %y"))
 ```
 
 ### `r str_glue('Miles this year<br>({get_ytd_values("distance_mi", ytd_stats)["pytd"]} pytd)')`
@@ -463,7 +463,7 @@ Row {data-height=115}
 ### Adventures
 
 ```{r}
-valueBox(tbr_summary$adventures, icon = "fa-bicycle", color = "#EDF0F1")
+valueBox(tbr_summary$adventures, icon = "fa-bicycle")
 ```
 
 ### Miles together
@@ -471,8 +471,7 @@ valueBox(tbr_summary$adventures, icon = "fa-bicycle", color = "#EDF0F1")
 ```{r}
 valueBox(
   sprintf("%.1f mi", tbr_summary$distance_miles),
-  icon = "fa-road",
-  color = "#EDF0F1"
+  icon = "fa-road"
 )
 ```
 
@@ -481,8 +480,7 @@ valueBox(
 ```{r}
 valueBox(
   format_tbr_duration(tbr_summary$moving_time_seconds),
-  icon = "fa-clock-o",
-  color = "#EDF0F1"
+  icon = "fa-clock-o"
 )
 ```
 
@@ -492,8 +490,7 @@ valueBox(
 valueBox(
   if (is.na(tbr_summary$first_adventure_date)) "—" else
     format(tbr_summary$first_adventure_date, "%d %b %Y"),
-  icon = "fa-calendar",
-  color = "#EDF0F1"
+  icon = "fa-calendar"
 )
 ```
 
