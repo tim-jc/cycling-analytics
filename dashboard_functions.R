@@ -1068,24 +1068,14 @@ draw_best_effort_telemetry <- function(
 
 draw_best_effort_placeholder <- function(title, detail, min_height = "320px") {
   htmltools::div(
-    style = paste(
-      str_glue("min-height: {min_height};"),
-      "display: flex;",
-      "flex-direction: column;",
-      "align-items: center;",
-      "justify-content: center;",
-      "border: 1px solid #e5e7eb;",
-      "background: #f8fafc;",
-      "color: #334155;",
-      "text-align: center;",
-      "padding: 1rem;"
-    ),
+    class = "best-effort-placeholder",
+    style = str_glue("min-height: {min_height};"),
     htmltools::div(
-      style = "font-size: 1.1rem; font-weight: 600; margin-bottom: 0.35rem;",
+      class = "best-effort-placeholder__title",
       title
     ),
     htmltools::div(
-      style = "font-size: 0.9rem;",
+      class = "best-effort-placeholder__detail",
       detail
     )
   )

@@ -271,8 +271,15 @@ latest_ride_empty_message <- function(
   )
 }
 
-latest_ride_notice <- function(text) {
-  htmltools::div(class = "latest-ride-notice", text)
+latest_ride_notice <- function(
+  text,
+  tone = c("information", "unavailable")
+) {
+  tone <- match.arg(tone)
+  htmltools::div(
+    class = paste("latest-ride-notice", paste0("latest-ride-notice--", tone)),
+    text
+  )
 }
 
 format_latest_duration <- function(seconds) {
@@ -294,7 +301,7 @@ format_latest_metric <- function(value, suffix, digits = 0L) {
 
 latest_ride_identity <- function(activity) {
   if (nrow(activity) == 0L) {
-    return(latest_ride_notice(latest_ride_empty_message()))
+    return(latest_ride_notice(latest_ride_empty_message(), "unavailable"))
   }
   ride <- activity[1, ]
   link <- sprintf("https://www.strava.com/activities/%s", ride$activity_id)
@@ -332,7 +339,7 @@ draw_latest_ride_trace <- function(streams, metric, label, units, colour) {
     return(latest_ride_notice(sprintf(
       "%s telemetry is unavailable for this ride.",
       label
-    )))
+    ), "unavailable"))
   }
 
   trace_data <- streams |>
@@ -406,7 +413,10 @@ prepare_latest_ride_route <- function(streams) {
 draw_latest_ride_map <- function(streams, sport_type = NA_character_) {
   route <- prepare_latest_ride_route(streams)
   if (!isTRUE(route$eligible)) {
-    return(latest_ride_notice("A usable route is unavailable for this ride."))
+    return(latest_ride_notice(
+      "A usable route is unavailable for this ride.",
+      "unavailable"
+    ))
   }
 
   map <- leaflet::leaflet(route$points) |>
@@ -470,7 +480,8 @@ draw_latest_ride_power_curve <- function(efforts) {
     )
   if (nrow(efforts) == 0L) {
     return(latest_ride_notice(
-      "A ride-only Gold power curve is unavailable for this ride."
+      "A ride-only Gold power curve is unavailable for this ride.",
+      "unavailable"
     ))
   }
 
@@ -550,12 +561,14 @@ draw_latest_ride_hr_zones <- function(
 ) {
   if (!isTRUE(latest_ride_stream_availability(streams)[["heart_rate"]])) {
     return(latest_ride_notice(
-      "Heart-rate telemetry is unavailable for this ride."
+      "Heart-rate telemetry is unavailable for this ride.",
+      "unavailable"
     ))
   }
   if (is.na(max_hr_bpm)) {
     return(latest_ride_notice(
-      "Set CYCLING_ANALYTICS_HR_MAX_BPM to display temporary presentation-only HR zones."
+      "Set CYCLING_ANALYTICS_HR_MAX_BPM to display temporary presentation-only HR zones.",
+      "unavailable"
     ))
   }
   zones <- build_latest_ride_hr_zones(streams, max_hr_bpm)
@@ -656,7 +669,8 @@ latest_ride_highlights <- function(rankings) {
 latest_ride_efforts_table <- function(efforts) {
   if (nrow(efforts) == 0L) {
     return(latest_ride_notice(
-      "No selected-duration Gold power efforts are available for this ride."
+      "No selected-duration Gold power efforts are available for this ride.",
+      "unavailable"
     ))
   }
   labels <- c(

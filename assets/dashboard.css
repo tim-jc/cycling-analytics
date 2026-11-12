@@ -153,6 +153,141 @@ body {
   color: var(--ptg-ink);
 }
 
+.latest-ride-notice {
+  align-items: center;
+  background: var(--ptg-surface);
+  border: 1px solid var(--ptg-line);
+  border-left: 4px solid var(--ptg-survey-blue);
+  color: var(--ptg-muted);
+  display: flex;
+  line-height: 1.45;
+  min-height: 76px;
+  padding: 14px;
+}
+
+.latest-ride-notice--unavailable {
+  border-left-color: var(--ptg-copper);
+  color: var(--ptg-ink);
+}
+
+.latest-ride-highlights {
+  display: grid;
+  gap: 10px;
+  padding: 10px 4px;
+}
+
+.latest-ride-highlight {
+  background: var(--ptg-surface);
+  border: 1px solid var(--ptg-line);
+  border-left: 5px solid var(--ptg-copper);
+  color: var(--ptg-ink);
+  font-size: 17px;
+  font-weight: 600;
+  padding: 12px 15px;
+}
+
+.best-effort-placeholder {
+  align-items: center;
+  background: var(--ptg-surface);
+  border: 1px solid var(--ptg-line);
+  color: var(--ptg-ink);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--ptg-space-4);
+  text-align: center;
+}
+
+.best-effort-placeholder__title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: .35rem;
+}
+
+.best-effort-placeholder__detail {
+  color: var(--ptg-muted);
+  font-size: .9rem;
+  line-height: 1.45;
+}
+
+.tbr-milestones {
+  display: grid;
+  gap: 8px;
+  padding: 8px 4px;
+}
+
+.tbr-milestone {
+  align-items: baseline;
+  background: var(--ptg-surface);
+  border: 1px solid var(--ptg-line);
+  border-left: 4px solid var(--ptg-survey-blue);
+  color: var(--ptg-ink);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 92px 1fr;
+  padding: 9px 12px;
+}
+
+.tbr-milestone-date {
+  color: var(--ptg-muted);
+  font-size: 12px;
+  font-family: var(--ptg-font-mono);
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+.tbr-map-status {
+  background: var(--ptg-midnight);
+  border: 1px solid var(--ptg-line);
+  border-left: 4px solid var(--ptg-survey-blue);
+  color: var(--ptg-ink);
+  line-height: 1.35;
+  padding: 7px 10px;
+}
+
+.leaflet-control.tbr-focus-control {
+  background: var(--ptg-midnight);
+  border: 1px solid var(--ptg-line);
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.tbr-focus-control .tbr-focus-button {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--ptg-line);
+  color: var(--ptg-muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 7px 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.tbr-focus-control .tbr-focus-button:last-child {
+  border-bottom: 0;
+}
+
+.tbr-focus-control .tbr-focus-button:hover {
+  background: var(--ptg-surface);
+  color: var(--ptg-ink);
+}
+
+.tbr-focus-control .tbr-focus-button.is-active {
+  background: var(--ptg-surface);
+  color: var(--ptg-accent);
+  font-weight: 600;
+}
+
+.tbr-focus-control .tbr-focus-button:focus-visible {
+  outline: 3px solid var(--ptg-focus);
+  outline-offset: -3px;
+  position: relative;
+  z-index: 1;
+}
+
 .value-box {
   background: var(--ptg-surface) !important;
   border: 1px solid var(--ptg-line);

@@ -345,6 +345,56 @@ run_test("mobile page navigation closes the existing collapse", {
   expect_true(grepl('collapse.classList.remove("in", "show")', shell_source, fixed = TRUE))
 })
 
+run_test("dashboard component surfaces use Navigation Instrument tokens", {
+  css_source <- paste(
+    readLines("assets/dashboard.css", warn = FALSE),
+    collapse = "\n"
+  )
+  dashboard_source <- paste(
+    readLines("dashboards/index.Rmd", warn = FALSE),
+    collapse = "\n"
+  )
+
+  selectors <- c(
+    ".latest-ride-notice--unavailable",
+    ".latest-ride-highlight",
+    ".best-effort-placeholder",
+    ".tbr-milestone",
+    ".tbr-map-status",
+    ".leaflet-control.tbr-focus-control",
+    ".tbr-focus-control .tbr-focus-button.is-active"
+  )
+  expect_true(all(vapply(
+    selectors,
+    function(selector) grepl(selector, css_source, fixed = TRUE),
+    logical(1)
+  )))
+  expect_true(grepl("var(--ptg-surface)", css_source, fixed = TRUE))
+  expect_true(grepl("var(--ptg-muted)", css_source, fixed = TRUE))
+  expect_true(grepl("var(--ptg-copper)", css_source, fixed = TRUE))
+  expect_true(grepl("var(--ptg-focus)", css_source, fixed = TRUE))
+  expect_true(!grepl(".latest-ride-notice {", dashboard_source, fixed = TRUE))
+  expect_true(!grepl(".tbr-focus-control {", dashboard_source, fixed = TRUE))
+})
+
+run_test("presentation components expose semantic surface states", {
+  information <- as.character(latest_ride_notice("Information"))
+  unavailable <- as.character(latest_ride_notice("Unavailable", "unavailable"))
+  placeholder <- as.character(draw_best_effort_placeholder(
+    "No effort",
+    "No telemetry"
+  ))
+  focus_javascript <- tbr_focus_control_javascript()
+
+  expect_true(grepl("latest-ride-notice--information", information, fixed = TRUE))
+  expect_true(grepl("latest-ride-notice--unavailable", unavailable, fixed = TRUE))
+  expect_true(grepl("best-effort-placeholder__title", placeholder, fixed = TRUE))
+  expect_true(grepl("best-effort-placeholder__detail", placeholder, fixed = TRUE))
+  expect_true(!grepl("background: #f8fafc", placeholder, fixed = TRUE))
+  expect_true(grepl("aria-pressed", focus_javascript, fixed = TRUE))
+  expect_true(grepl("is-active", focus_javascript, fixed = TRUE))
+})
+
 run_test("container logging defaults to stdout without a log file", {
   withr::local_envvar(c(
     DASHBOARD_LOG = NA,
