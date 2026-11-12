@@ -412,7 +412,7 @@ run_test("TBR focus buttons reset native and framework presentation", {
   identity_environment <- new.env(parent = globalenv())
   sys.source("dashboard_identity.R", envir = identity_environment)
 
-  expect_equal(identity_environment$DASHBOARD_IDENTITY_VERSION, "1.0.5")
+  expect_equal(identity_environment$DASHBOARD_IDENTITY_VERSION, "1.0.6")
   expect_true(grepl("-webkit-appearance: none", css_source, fixed = TRUE))
   expect_true(grepl("appearance: none", css_source, fixed = TRUE))
   expect_true(grepl("border-radius: 0", css_source, fixed = TRUE))
@@ -433,6 +433,57 @@ run_test("TBR focus buttons reset native and framework presentation", {
     css_source,
     fixed = TRUE
   ))
+})
+
+run_test("dashboard Leaflet chrome uses scoped Navigation Instrument styling", {
+  css_source <- paste(
+    readLines("assets/dashboard.css", warn = FALSE),
+    collapse = "\n"
+  )
+  required_selectors <- c(
+    ".dashboard-page .leaflet-bar:not(.tbr-focus-control)",
+    ".dashboard-page .leaflet-control-layers",
+    ".dashboard-page .leaflet-control.info.legend",
+    ".dashboard-page .leaflet-popup-content-wrapper",
+    ".dashboard-page .leaflet-popup-tip",
+    ".dashboard-page .leaflet-popup-content",
+    ".dashboard-page .leaflet-container a.leaflet-popup-close-button",
+    ".dashboard-page .leaflet-container .leaflet-control-attribution",
+    ".dashboard-page .leaflet-control-attribution a",
+    ".latest-ride-virtual-route-label"
+  )
+  expect_true(all(vapply(
+    required_selectors,
+    function(selector) grepl(selector, css_source, fixed = TRUE),
+    logical(1)
+  )))
+  expect_true(grepl(
+    "background: var(--ptg-midnight)",
+    css_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    "border: 1px solid var(--ptg-line)",
+    css_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    "outline: 3px solid var(--ptg-focus) !important",
+    css_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    "background: rgba(23, 38, 48, .88)",
+    css_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    "max-width: calc(100% - 8px)",
+    css_source,
+    fixed = TRUE
+  ))
+  expect_true(!grepl("filter: invert", css_source, fixed = TRUE))
+  expect_true(!grepl(".leaflet-tile", css_source, fixed = TRUE))
 })
 
 run_test("value boxes use Navigation Instrument hierarchy and resilient text", {
