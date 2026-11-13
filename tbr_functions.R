@@ -14,10 +14,10 @@ TBR_FOCUS_LOCALITY_FIELDS <- c(
   "borough", "city_district", "municipality", "town", "city", "county",
   "state_district", "state"
 )
-TBR_HISTORICAL_ROUTE_COLOR <- "#466B88"
+TBR_HISTORICAL_ROUTE_COLOR <- "#8BA9B7"
 TBR_HISTORICAL_ROUTE_WEIGHT <- 2.5
 TBR_HISTORICAL_ROUTE_OPACITY <- 0.50
-TBR_LATEST_ROUTE_COLOR <- "#17324D"
+TBR_LATEST_ROUTE_COLOR <- "#D18B58"
 TBR_LATEST_ROUTE_WEIGHT <- 4.5
 TBR_LATEST_ROUTE_OPACITY <- 1
 
@@ -907,7 +907,7 @@ draw_tbr_adventure_map <- function(
 
   map <- leaflet::leaflet() |>
     leaflet::addTiles(
-      carto_basemap_tile_url("voyager_labels_under"),
+      carto_basemap_tile_url("dark_matter"),
       attribution = paste(
         '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
         '&copy; <a href="https://carto.com/attributions">CARTO</a>'

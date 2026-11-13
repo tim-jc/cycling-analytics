@@ -98,6 +98,7 @@ carto_basemap_api_key <- function() {
 carto_basemap_tile_url <- function(style) {
   supported_styles <- c(
     positron = "light_all",
+    dark_matter = "rastertiles/dark_all",
     voyager_labels_under = "rastertiles/voyager_labels_under"
   )
 
@@ -1221,7 +1222,7 @@ draw_best_effort_map <- function(
 
   leaflet() |>
     addTiles(
-      carto_basemap_tile_url("voyager_labels_under"),
+      carto_basemap_tile_url("dark_matter"),
       attribution = paste(
         '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
         '&copy; <a href="https://cartodb.com/attributions">CartoDB</a>'
@@ -1233,7 +1234,7 @@ draw_best_effort_map <- function(
       lng = ~longitude,
       opacity = 0.75,
       weight = 4,
-      color = "#0C2340"
+      color = "#D18B58"
     ) |>
     addCircleMarkers(
       data = start_point,
@@ -1635,7 +1636,7 @@ add_track <- function(
   leaflet_obj,
   position_tbl,
   lat_lng_names = c("latitude", "longitude"),
-  track_colour = "#0C2340"
+  track_colour = "#8BA9B7"
 ) {
   latitude <- position_tbl[[lat_lng_names[1]]]
   longitude <- position_tbl[[lat_lng_names[2]]]
@@ -1668,7 +1669,7 @@ draw_map <- function(streams_tbl) {
 
   map <- leaflet() |>
     addTiles(
-      carto_basemap_tile_url("voyager_labels_under"),
+      carto_basemap_tile_url("dark_matter"),
       attribution = paste(
         '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
         '&copy; <a href="https://cartodb.com/attributions">CartoDB</a>'

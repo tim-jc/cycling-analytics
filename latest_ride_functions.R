@@ -420,7 +420,7 @@ draw_latest_ride_map <- function(streams, sport_type = NA_character_) {
 
   map <- leaflet::leaflet(route$points) |>
     leaflet::addTiles(
-      carto_basemap_tile_url("positron"),
+      carto_basemap_tile_url("dark_matter"),
       attribution = paste(
         '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
         '&copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -433,7 +433,7 @@ draw_latest_ride_map <- function(streams, sport_type = NA_character_) {
       data = segment,
       lng = ~longitude,
       lat = ~latitude,
-      color = "#17324D",
+      color = "#D18B58",
       weight = 2,
       opacity = 0.9
     )
@@ -447,7 +447,7 @@ draw_latest_ride_map <- function(streams, sport_type = NA_character_) {
       lat = ~latitude,
       radius = 2,
       stroke = FALSE,
-      fillColor = "#17324D",
+      fillColor = "#D18B58",
       fillOpacity = 0.9
     )
   }

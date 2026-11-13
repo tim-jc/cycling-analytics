@@ -5,6 +5,7 @@ suppressPackageStartupMessages({
   library(lubridate)
   library(plotly)
   library(flexdashboard)
+  library(leaflet)
 })
 
 Sys.setenv(TZ = "Europe/London")
@@ -959,6 +960,83 @@ run_test("CARTO tile URL preserves the Positron basemap", {
   ))
 })
 
+run_test("CARTO tile URL supports the Dark Matter basemap", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+
+  expect_equal(
+    carto_basemap_tile_url("dark_matter"),
+    paste0(
+      "https://{s}.basemaps.cartocdn.com/",
+      "rastertiles/dark_all/{z}/{x}/{y}.png?key=test-carto-key"
+    )
+  )
+})
+
+run_test("published effort and cumulative maps use approved dark presentation", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+
+  effort_map <- draw_best_effort_map(
+    tibble::tibble(
+      duration_seconds = c(300, 300),
+      latitude = c(51.5, 51.51),
+      longitude = c(-0.12, -0.11),
+      stream_order = 1:2
+    ),
+    tibble::tibble(
+      duration_seconds = 300,
+      sport_type = "Ride",
+      peak_label = "300 W",
+      start_date_local = as.Date("2026-11-01")
+    ),
+    300
+  )
+  effort_methods <- vapply(
+    effort_map$x$calls,
+    `[[`,
+    character(1),
+    "method"
+  )
+  effort_line <- effort_map$x$calls[[which(effort_methods == "addPolylines")]]
+
+  expect_true(grepl(
+    "rastertiles/dark_all",
+    effort_map$x$calls[[1]]$args[[1]],
+    fixed = TRUE
+  ))
+  expect_equal(effort_line$args[[4]]$color, "#D18B58")
+  expect_equal(effort_line$args[[4]]$weight, 4)
+  expect_equal(effort_line$args[[4]]$opacity, 0.75)
+  expect_equal(sum(effort_methods == "addCircleMarkers"), 2L)
+  expect_equal(effort_map$x$limits$lat, c(51.5, 51.51))
+  expect_equal(effort_map$x$limits$lng, c(-0.12, -0.11))
+
+  cumulative_map <- draw_map(tibble::tibble(
+    activity_id = c("1", "1"),
+    sport_type = c("Ride", "Ride"),
+    stream_order = 1:2,
+    latitude = c(51.5, 51.51),
+    longitude = c(-0.12, -0.11)
+  ))
+  cumulative_methods <- vapply(
+    cumulative_map$x$calls,
+    `[[`,
+    character(1),
+    "method"
+  )
+  cumulative_line <- cumulative_map$x$calls[[
+    which(cumulative_methods == "addPolylines")
+  ]]
+
+  expect_true(grepl(
+    "rastertiles/dark_all",
+    cumulative_map$x$calls[[1]]$args[[1]],
+    fixed = TRUE
+  ))
+  expect_equal(cumulative_line$args[[4]]$color, "#8BA9B7")
+  expect_equal(cumulative_line$args[[4]]$weight, 2)
+  expect_equal(cumulative_line$args[[4]]$opacity, 0.5)
+})
+
 run_test("CARTO configuration does not print the configured key", {
   withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
   output <- capture.output(api_key <- carto_basemap_api_key())
@@ -1540,7 +1618,7 @@ leaflet_call_methods <- function(map) {
   vapply(map$x$calls, `[[`, character(1), "method")
 }
 
-run_test("valid outdoor Latest Ride route renders with existing presentation", {
+run_test("valid outdoor Latest Ride route renders on Dark Matter in copper", {
   withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
   map <- draw_latest_ride_map(latest_ride_route_fixture(), "Ride")
   methods <- leaflet_call_methods(map)
@@ -1548,8 +1626,8 @@ run_test("valid outdoor Latest Ride route renders with existing presentation", {
 
   expect_true(inherits(map, "leaflet"))
   expect_equal(methods, c("addTiles", "addPolylines"))
-  expect_true(grepl("light_all", map$x$calls[[1]]$args[[1]], fixed = TRUE))
-  expect_equal(line_options$color, "#17324D")
+  expect_true(grepl("rastertiles/dark_all", map$x$calls[[1]]$args[[1]], fixed = TRUE))
+  expect_equal(line_options$color, "#D18B58")
   expect_equal(line_options$weight, 2)
   expect_equal(line_options$opacity, 0.9)
   expect_equal(map$x$limits$lat, c(51.5, 51.52))
@@ -2309,7 +2387,7 @@ run_test("TBR map renders historical and highlighted route presentation", {
 
   expect_true(inherits(map, "leaflet"))
   expect_true(grepl(
-    "rastertiles/voyager_labels_under",
+    "rastertiles/dark_all",
     map$x$calls[[1]]$args[[1]],
     fixed = TRUE
   ))
