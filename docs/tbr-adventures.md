@@ -45,11 +45,11 @@ the current local month are marked as future rather than zero-activity months.
 
 ## Adventure map
 
-The map retains the CARTO Voyager basemap. Historical routes use a moderately
-visible muted blue line so the cumulative family-adventure network remains
+The map uses the CARTO Dark Matter basemap. Historical routes use a moderately
+visible survey-blue line so the cumulative family-adventure network remains
 readable and repeated routes become more prominent through overplotting. The
-most recent adventure uses a darker, wider line, is added last, and therefore
-remains visually distinct on top. If the newest
+most recent mapped adventure uses a wider copper line, is added last, and
+therefore remains visually distinct on top. If the newest
 adventure has no usable GPS, the label says `Latest mapped adventure` and the
 unmapped count remains visible rather than misrepresenting the older route as
 the newest adventure.
