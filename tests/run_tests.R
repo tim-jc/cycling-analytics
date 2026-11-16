@@ -413,7 +413,7 @@ run_test("TBR focus buttons reset native and framework presentation", {
   identity_environment <- new.env(parent = globalenv())
   sys.source("dashboard_identity.R", envir = identity_environment)
 
-  expect_equal(identity_environment$DASHBOARD_IDENTITY_VERSION, "1.0.6")
+  expect_equal(identity_environment$DASHBOARD_IDENTITY_VERSION, "1.0.7")
   expect_true(grepl("-webkit-appearance: none", css_source, fixed = TRUE))
   expect_true(grepl("appearance: none", css_source, fixed = TRUE))
   expect_true(grepl("border-radius: 0", css_source, fixed = TRUE))
@@ -605,6 +605,61 @@ run_test("Navigation Instrument Plotly defaults preserve analytical semantics", 
   expect_equal(after$x$layout$hoverlabel$font$color, PLOTLY_IVORY_INK)
   expect_true(after$x$layout$plot_bgcolor != "#F1EFE7")
   expect_true(after$x$layout$paper_bgcolor != "#F1EFE7")
+})
+
+run_test("iOS summary layout preserves Plotly data and responds at narrow widths", {
+  original <- plotly::plot_ly(
+    x = c("10min", "20min", "30min", "60min"),
+    y = c(300, 280, 265, 245),
+    type = "scatter",
+    mode = "lines+markers"
+  ) |>
+    plotly::layout(
+      margin = list(t = 42),
+      legend = list(y = 1.12),
+      annotations = list(list(text = "Dashed = projected", x = 1, y = 1.12))
+    )
+  responsive <- apply_responsive_summary_plotly(
+    original,
+    angle_duration_ticks = TRUE
+  )
+  before <- plotly::plotly_build(original)
+  after <- plotly::plotly_build(responsive)
+  hook <- responsive$jsHooks$render[[1]]$code
+
+  expect_equal(after$x$data, before$x$data)
+  expect_equal(after$x$layout, before$x$layout)
+  expect_true(grepl("width <= 767", hook, fixed = TRUE))
+  expect_true(grepl("'margin.t': 82", hook, fixed = TRUE))
+  expect_true(grepl("'legend.y': 1.02", hook, fixed = TRUE))
+  expect_true(grepl("'xaxis.tickangle'] = compact ? -45 : 0", hook, fixed = TRUE))
+  expect_true(grepl("compactTickIndices = [0, 2, 5, 7, 9]", hook, fixed = TRUE))
+  expect_true(grepl("durationAxis.tickvals[index]", hook, fixed = TRUE))
+  expect_true(grepl("ResizeObserver", hook, fixed = TRUE))
+})
+
+run_test("iOS value boxes and Best Efforts override framework clipping", {
+  css_source <- paste(
+    readLines("assets/dashboard.css", warn = FALSE),
+    collapse = "\n"
+  )
+
+  expect_true(grepl(
+    ".value-box .icon {\n    display: block;",
+    css_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    ".dashboard-page-wrapper .value-box > .inner",
+    css_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    "#best-efforts .tablet-best-efforts-detail > .chart-wrapper",
+    css_source,
+    fixed = TRUE
+  ))
+  expect_true(length(gregexpr("min-height: 640px", css_source, fixed = TRUE)[[1]]) >= 2L)
 })
 
 run_test("dashboard Plotly paths use the shared presentation helper", {

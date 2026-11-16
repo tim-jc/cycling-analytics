@@ -79,6 +79,69 @@ apply_navigation_instrument_plotly <- function(plot) {
   do.call(plotly::layout, c(list(p = plot), shared_layout))
 }
 
+apply_responsive_summary_plotly <- function(plot, angle_duration_ticks = FALSE) {
+  angle_ticks <- if (isTRUE(angle_duration_ticks)) "true" else "false"
+
+  htmlwidgets::onRender(
+    plot,
+    sprintf(
+      "
+      function(el, x) {
+        var angleDurationTicks = %s;
+        var durationAxis = angleDurationTicks ? {
+          tickmode: el.layout.xaxis.tickmode,
+          tickvals: (el.layout.xaxis.tickvals || []).slice(),
+          ticktext: (el.layout.xaxis.ticktext || []).slice()
+        } : null;
+        var compactTickIndices = [0, 2, 5, 7, 9];
+
+        function applyResponsiveSummaryLayout() {
+          var width = el.getBoundingClientRect().width;
+          if (!width) return;
+
+          var compact = width <= 767;
+          if (el.__ptgCompactSummaryLayout === compact) return;
+          el.__ptgCompactSummaryLayout = compact;
+
+          var update = {
+            'margin.t': 82,
+            'legend.y': 1.02
+          };
+
+          if (el.layout.annotations && el.layout.annotations.length) {
+            update['annotations[0].y'] = 1.02;
+          }
+
+          if (angleDurationTicks) {
+            update['xaxis.tickangle'] = compact ? -45 : 0;
+            update['margin.b'] = compact ? 92 : 80;
+            update['xaxis.tickmode'] = durationAxis.tickmode;
+            update['xaxis.tickvals'] = compact ?
+              compactTickIndices.map(function(index) {
+                return durationAxis.tickvals[index];
+              }) : durationAxis.tickvals;
+            update['xaxis.ticktext'] = compact ?
+              compactTickIndices.map(function(index) {
+                return durationAxis.ticktext[index];
+              }) : durationAxis.ticktext;
+          }
+
+          Plotly.relayout(el, update);
+        }
+
+        window.requestAnimationFrame(applyResponsiveSummaryLayout);
+        if (window.ResizeObserver) {
+          new ResizeObserver(applyResponsiveSummaryLayout).observe(el);
+        } else {
+          window.addEventListener('resize', applyResponsiveSummaryLayout);
+        }
+      }
+      ",
+      angle_ticks
+    )
+  )
+}
+
 carto_basemap_api_key <- function() {
   api_key <- Sys.getenv("CARTO_BASEMAP_API_KEY", unset = "")
 
@@ -1149,11 +1212,14 @@ draw_best_effort_detail <- function(
 ) {
   htmltools::tagList(
     htmltools::div(
-      style = "height: 50%; min-height: 300px;",
+      style = "height: calc(50% - 0.25rem); min-height: 300px;",
       draw_best_effort_map(best_effort_streams, best_efforts, duration_seconds)
     ),
     htmltools::div(
-      style = "height: 50%; min-height: 300px; margin-top: 0.5rem;",
+      style = paste(
+        "height: calc(50% - 0.25rem);",
+        "min-height: 300px; margin-top: 0.5rem;"
+      ),
       draw_best_effort_telemetry(
         best_effort_streams,
         best_efforts,
@@ -1567,7 +1633,8 @@ draw_ytd_curve <- function(metric_to_plot, ytd_stats) {
       ),
       annotations = projection_annotation
     ) |>
-    apply_navigation_instrument_plotly()
+    apply_navigation_instrument_plotly() |>
+    apply_responsive_summary_plotly()
 
   # Render custom JS
   ytd_curve <- ytd_curve |>
@@ -1804,7 +1871,8 @@ draw_critical_metric_curve <- function(metric_to_plot, con) {
         title = list(text = "")
       )
     ) |>
-    apply_navigation_instrument_plotly()
+    apply_navigation_instrument_plotly() |>
+    apply_responsive_summary_plotly(angle_duration_ticks = TRUE)
 
   # Render custom JS
   peaks_plot <- peaks_plot %>%

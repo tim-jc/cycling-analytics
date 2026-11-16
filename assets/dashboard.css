@@ -585,11 +585,30 @@ button:focus-visible,
 
   .tablet-best-efforts-detail > .chart-wrapper {
     flex: 0 0 calc(50% - 8px) !important;
-    min-height: 520px;
+    min-height: 640px;
   }
 }
 
 @media (max-width: 767px) {
+  .value-box .icon {
+    display: block;
+  }
+
+  .dashboard-page-wrapper .value-box > .inner {
+    padding-left: 52px !important;
+    padding-right: 52px !important;
+  }
+
+  .value-box .value,
+  .value-box .caption {
+    max-width: 100%;
+  }
+
+  #best-efforts .tablet-best-efforts-detail > .chart-wrapper {
+    height: 640px !important;
+    min-height: 640px;
+  }
+
   .dashboard-column-orientation > .dashboard-column {
     min-width: 0;
     width: 100%;
