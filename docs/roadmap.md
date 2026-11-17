@@ -1,13 +1,13 @@
 # Cycling Analytics Roadmap
 
-**Last reviewed:** 2026-11-14
+**Last reviewed:** 2026-11-17
 
 **Operational state:** The batch dashboard has a documented production
 operating model. The currently published production source SHA has not been
 verified. Activity Inspector is intentionally a local-only application.
 
-**Current delivery workstream:** Navigation Instrument Slice 2H iOS
-presentation corrections
+**Current delivery workstream:** Navigation Instrument Slice 2I visual
+refinements
 
 **Workstream lifecycle state:** Awaiting acceptance
 
@@ -30,13 +30,11 @@ cycling-infrastructure.
   updates on 9 November 2026. The committed feature baseline includes the
   family-journal summaries, calendar, milestones and cumulative map with
   geographic focus controls. Repository evidence: [TBR family adventures](tbr-adventures.md).
-- **Navigation Instrument:** the presentation baseline through Slice 2G is
-  committed at `44b941b`. The desktop visual acceptance check for the Slice 2G
-  dark maps remains outstanding; this qualification does not reopen previously
-  accepted feature functionality.
+- **Navigation Instrument:** the presentation baseline through Slice 2H is
+  committed at `447f559`. The owner accepted Slice 2H on 17 November 2026.
 - **Production publication:** cycling-infrastructure owns deployment and
   publication. The SHA currently deployed and published has not been verified,
-  so no equivalence between production and `44b941b` is claimed. Repository
+  so no equivalence between production and `447f559` is claimed. Repository
   evidence: [runtime contract](runtime-contract.md).
 
 Owner acceptance above is owner-reported evidence now recorded durably in this
@@ -56,22 +54,21 @@ presentation slice.
 | --- | --- | --- | --- |
 | Activity Inspector functional baseline | Local read-only boundary discovery using canonical Silver samples | Accepted | Owner-reported successful use on real coastal-boundary work; implementation and operating contract documented in [Activity Inspector](activity-inspector.md) |
 | TBR family-adventure baseline | Accepted family journal, temporal summaries, milestones and cumulative map | Accepted | Explicit owner acceptance on 9 November 2026; implementation documented in [TBR family adventures](tbr-adventures.md) |
-| Navigation Instrument through Slice 2G | Committed application shell, responsive presentation, charts and dark dashboard maps | Awaiting acceptance | Source committed through `44b941b`; desktop dark-map visual check remains |
-| Slice 2H iOS corrections | Correct value-box icons, Plotly overlaps, narrow duration labels and Best Efforts clipping | Awaiting acceptance | Local implementation awaits owner visual review |
+| Navigation Instrument through Slice 2H | Committed application shell, responsive presentation, charts, maps and iOS corrections | Accepted | Owner accepted Slice 2H on 17 November 2026; source committed at `447f559` |
+| Slice 2I visual refinements | Recover summary plotting space, clarify the Best Efforts period and improve effort/historical map legibility | Awaiting acceptance | Local implementation awaits owner visual review |
 | Production revision reconciliation | Record the exact accepted SHA deployed and published by infrastructure | Ready | Deployment, refresh and publication evidence naming the Analytics SHA |
 
 ## Active work
 
-**Current bounded item:** Owner visual acceptance of Slice 2H, including the
-outstanding desktop check of the Slice 2G dark maps.
+**Current bounded item:** Navigation Instrument Slice 2I visual refinements.
 
-**Position:** Slice 2H is implemented as local, uncommitted changes. It must not
-be described as accepted, committed or published until the corresponding owner
-review and later delivery steps occur.
+**Position:** Slice 2H is accepted and committed. Slice 2I is implemented
+locally and must not be described as accepted, committed or published until the
+corresponding owner review and later delivery steps occur.
 
-**Evidence needed for acceptance:** Owner observation of the affected dashboard
-surfaces on iOS Safari and desktop, with either explicit acceptance or a bounded
-defect list.
+**Evidence needed for acceptance:** Owner observation that summary charts use
+their space efficiently, Best Efforts communicates its reporting year and short
+effort and historical route maps provide adequate geographic distinction.
 
 ## Dependencies
 
@@ -86,9 +83,6 @@ defect list.
 - **Unknown published revision:** repository history cannot establish which
   Analytics SHA currently serves production. Resolve this from infrastructure
   deployment and publication evidence rather than inference.
-- **Uncommitted Slice 2H work:** the current four-file implementation is a
-  coherent resumption point but is not durable delivery evidence until accepted
-  and committed.
 
 ## Deferred work
 
@@ -99,11 +93,12 @@ defect list.
 
 ## Next action
 
-**Owner: complete the Slice 2H iOS/desktop visual review, including the remaining
-Slice 2G dark-map check, and record acceptance or a bounded defect list.**
+**Owner: review the locally rendered Slice 2I summary charts, Best Efforts maps
+and historical route map, then record acceptance or a bounded defect list.**
 
 ## Revision history
 
 | Date | Change | Reason / evidence |
 | --- | --- | --- |
+| 2026-11-17 | Recorded Slice 2H acceptance and opened Slice 2I visual refinements | Owner accepted Slice 2H; Slice 2I remains awaiting visual acceptance |
 | 2026-11-14 | Initial durable roadmap and accepted-feature reconciliation | Owner confirmed Activity Inspector acceptance and TBR acceptance dated 9 November 2026; current Git and operational evidence reconciled without making a deployment claim |

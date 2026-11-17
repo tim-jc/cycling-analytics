@@ -28,6 +28,8 @@ con <- dashboard_stage("Connect database", {
   connect_db()
 })
 
+best_efforts_reference_date <- Sys.Date()
+
 dashboard_stage("Load data", {
   latest_ride <- get_latest_significant_ride(con)
 
@@ -59,7 +61,10 @@ dashboard_stage("Load data", {
 
   position_extremities <- get_position_extremities(ytd_streams)
 
-  best_power_efforts <- get_ytd_best_power_efforts(con)
+  best_power_efforts <- get_ytd_best_power_efforts(
+    con,
+    reference_date = best_efforts_reference_date
+  )
 
   best_power_effort_streams <- get_best_effort_streams(con, best_power_efforts)
 })
@@ -298,7 +303,7 @@ Row
 draw_critical_metric_curve("power", con)
 ```
 
-Best Efforts
+`r str_glue("Best Efforts — {year(best_efforts_reference_date)}")`
 ===================================== 
 
 Row {.tablet-best-efforts-summary data-height=95}

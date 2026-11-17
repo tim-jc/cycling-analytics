@@ -630,8 +630,8 @@ run_test("iOS summary layout preserves Plotly data and responds at narrow widths
   expect_equal(after$x$data, before$x$data)
   expect_equal(after$x$layout, before$x$layout)
   expect_true(grepl("width <= 767", hook, fixed = TRUE))
-  expect_true(grepl("'margin.t': 82", hook, fixed = TRUE))
-  expect_true(grepl("'legend.y': 1.02", hook, fixed = TRUE))
+  expect_true(!grepl("'margin.t': 82", hook, fixed = TRUE))
+  expect_true(!grepl("'legend.y': 1.02", hook, fixed = TRUE))
   expect_true(grepl("'xaxis.tickangle'] = compact ? -45 : 0", hook, fixed = TRUE))
   expect_true(grepl("compactTickIndices = [0, 2, 5, 7, 9]", hook, fixed = TRUE))
   expect_true(grepl("durationAxis.tickvals[index]", hook, fixed = TRUE))
@@ -813,6 +813,7 @@ run_test("year comparisons expose years without changing observed or projected d
   )
   expect_true(isTRUE(built$x$layout$showlegend))
   expect_equal(built$x$layout$annotations[[1]]$text, "Dashed = projected")
+  expect_true(identical(built$x$config$displayModeBar, FALSE))
 })
 
 run_test("weekly volume identifies its unchanged four-week rolling average", {
@@ -1027,7 +1028,7 @@ run_test("CARTO tile URL supports the Dark Matter basemap", {
   )
 })
 
-run_test("published effort and cumulative maps use approved dark presentation", {
+run_test("effort and cumulative maps use context-appropriate presentation", {
   withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
 
   effort_map <- draw_best_effort_map(
@@ -1054,7 +1055,7 @@ run_test("published effort and cumulative maps use approved dark presentation", 
   effort_line <- effort_map$x$calls[[which(effort_methods == "addPolylines")]]
 
   expect_true(grepl(
-    "rastertiles/dark_all",
+    "rastertiles/voyager_labels_under",
     effort_map$x$calls[[1]]$args[[1]],
     fixed = TRUE
   ))
@@ -1088,8 +1089,48 @@ run_test("published effort and cumulative maps use approved dark presentation", 
     fixed = TRUE
   ))
   expect_equal(cumulative_line$args[[4]]$color, "#8BA9B7")
-  expect_equal(cumulative_line$args[[4]]$weight, 2)
-  expect_equal(cumulative_line$args[[4]]$opacity, 0.5)
+  expect_equal(cumulative_line$args[[4]]$weight, HISTORICAL_ROUTE_WEIGHT)
+  expect_equal(cumulative_line$args[[4]]$opacity, HISTORICAL_ROUTE_OPACITY)
+})
+
+run_test("summary charts disable only their Plotly modebars", {
+  dashboard_source <- paste(
+    readLines("dashboard_functions.R", warn = FALSE),
+    collapse = "\n"
+  )
+
+  expect_equal(
+    length(gregexpr(
+      "plotly::config(displayModeBar = FALSE)",
+      dashboard_source,
+      fixed = TRUE
+    )[[1]]),
+    2L
+  )
+  expect_true(!grepl("'margin.t': 82", dashboard_source, fixed = TRUE))
+})
+
+run_test("Best Efforts heading and query share the reporting date", {
+  dashboard_source <- paste(
+    readLines("dashboards/index.Rmd", warn = FALSE),
+    collapse = "\n"
+  )
+
+  expect_true(grepl(
+    "best_efforts_reference_date <- Sys.Date()",
+    dashboard_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    "reference_date = best_efforts_reference_date",
+    dashboard_source,
+    fixed = TRUE
+  ))
+  expect_true(grepl(
+    'Best Efforts — {year(best_efforts_reference_date)}',
+    dashboard_source,
+    fixed = TRUE
+  ))
 })
 
 run_test("CARTO configuration does not print the configured key", {

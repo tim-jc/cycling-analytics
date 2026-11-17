@@ -22,6 +22,8 @@ PLOTLY_GRID_LINE <- "#435965"
 PLOTLY_AXIS_LINE <- "#8BA9B7"
 PLOTLY_COPPER <- "#D18B58"
 PLOTLY_SURVEY_BLUE <- "#8BA9B7"
+HISTORICAL_ROUTE_WEIGHT <- 2.5
+HISTORICAL_ROUTE_OPACITY <- 0.72
 
 apply_navigation_instrument_plotly <- function(plot) {
   layout_axis_names <- unique(c(
@@ -103,14 +105,7 @@ apply_responsive_summary_plotly <- function(plot, angle_duration_ticks = FALSE) 
           if (el.__ptgCompactSummaryLayout === compact) return;
           el.__ptgCompactSummaryLayout = compact;
 
-          var update = {
-            'margin.t': 82,
-            'legend.y': 1.02
-          };
-
-          if (el.layout.annotations && el.layout.annotations.length) {
-            update['annotations[0].y'] = 1.02;
-          }
+          var update = {};
 
           if (angleDurationTicks) {
             update['xaxis.tickangle'] = compact ? -45 : 0;
@@ -1288,7 +1283,7 @@ draw_best_effort_map <- function(
 
   leaflet() |>
     addTiles(
-      carto_basemap_tile_url("dark_matter"),
+      carto_basemap_tile_url("voyager_labels_under"),
       attribution = paste(
         '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
         '&copy; <a href="https://cartodb.com/attributions">CartoDB</a>'
@@ -1634,7 +1629,7 @@ draw_ytd_curve <- function(metric_to_plot, ytd_stats) {
       annotations = projection_annotation
     ) |>
     apply_navigation_instrument_plotly() |>
-    apply_responsive_summary_plotly()
+    plotly::config(displayModeBar = FALSE)
 
   # Render custom JS
   ytd_curve <- ytd_curve |>
@@ -1703,7 +1698,7 @@ add_track <- function(
   leaflet_obj,
   position_tbl,
   lat_lng_names = c("latitude", "longitude"),
-  track_colour = "#8BA9B7"
+  track_colour = PLOTLY_SURVEY_BLUE
 ) {
   latitude <- position_tbl[[lat_lng_names[1]]]
   longitude <- position_tbl[[lat_lng_names[2]]]
@@ -1712,8 +1707,8 @@ add_track <- function(
     map = leaflet_obj,
     lat = latitude,
     lng = longitude,
-    opacity = 0.5,
-    weight = 2,
+    opacity = HISTORICAL_ROUTE_OPACITY,
+    weight = HISTORICAL_ROUTE_WEIGHT,
     color = track_colour
   )
 
@@ -1872,7 +1867,8 @@ draw_critical_metric_curve <- function(metric_to_plot, con) {
       )
     ) |>
     apply_navigation_instrument_plotly() |>
-    apply_responsive_summary_plotly(angle_duration_ticks = TRUE)
+    apply_responsive_summary_plotly(angle_duration_ticks = TRUE) |>
+    plotly::config(displayModeBar = FALSE)
 
   # Render custom JS
   peaks_plot <- peaks_plot %>%
