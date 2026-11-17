@@ -90,6 +90,12 @@ effort and historical route maps provide adequate geographic distinction.
   Inspector is accepted as its functional replacement for boundary discovery,
   but this repository does not claim that the legacy tool has already been
   removed.
+- **Best Efforts — detailed dark cartography:** the existing CARTO Dark Matter
+  basemap provides limited geographical context for short effort traces. Stadia
+  Alidade Smooth Dark has been visually reviewed and is a credible alternative,
+  but any new provider decision should follow the broader cartographic
+  requirements and provider selection established through Explorer development.
+  This is a deliberate deferral, not an unresolved acceptance defect.
 
 ## Next action
 

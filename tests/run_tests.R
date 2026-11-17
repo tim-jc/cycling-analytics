@@ -1028,7 +1028,7 @@ run_test("CARTO tile URL supports the Dark Matter basemap", {
   )
 })
 
-run_test("effort and cumulative maps use context-appropriate presentation", {
+run_test("published effort and cumulative maps use approved dark presentation", {
   withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
 
   effort_map <- draw_best_effort_map(
@@ -1055,7 +1055,7 @@ run_test("effort and cumulative maps use context-appropriate presentation", {
   effort_line <- effort_map$x$calls[[which(effort_methods == "addPolylines")]]
 
   expect_true(grepl(
-    "rastertiles/voyager_labels_under",
+    "rastertiles/dark_all",
     effort_map$x$calls[[1]]$args[[1]],
     fixed = TRUE
   ))
@@ -1111,10 +1111,8 @@ run_test("summary charts disable only their Plotly modebars", {
 })
 
 run_test("Best Efforts heading and query share the reporting date", {
-  dashboard_source <- paste(
-    readLines("dashboards/index.Rmd", warn = FALSE),
-    collapse = "\n"
-  )
+  dashboard_lines <- readLines("dashboards/index.Rmd", warn = FALSE)
+  dashboard_source <- paste(dashboard_lines, collapse = "\n")
 
   expect_true(grepl(
     "best_efforts_reference_date <- Sys.Date()",
@@ -1131,6 +1129,33 @@ run_test("Best Efforts heading and query share the reporting date", {
     dashboard_source,
     fixed = TRUE
   ))
+
+  heading_line <- dashboard_lines[grepl(
+    "Best Efforts — {year(best_efforts_reference_date)}",
+    dashboard_lines,
+    fixed = TRUE
+  )]
+  expect_equal(length(heading_line), 1L)
+  heading_code <- sub("^`r ", "", heading_line)
+  heading_code <- sub("`$", "", heading_code)
+  render_heading <- function(reference_date) {
+    eval(
+      parse(text = heading_code),
+      envir = list2env(
+        list(best_efforts_reference_date = as.Date(reference_date)),
+        parent = globalenv()
+      )
+    )
+  }
+
+  expect_equal(
+    as.character(render_heading("2026-12-31")),
+    "Best Efforts — 2026"
+  )
+  expect_equal(
+    as.character(render_heading("2027-01-01")),
+    "Best Efforts — 2027"
+  )
 })
 
 run_test("CARTO configuration does not print the configured key", {

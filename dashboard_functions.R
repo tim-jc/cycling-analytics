@@ -1283,7 +1283,7 @@ draw_best_effort_map <- function(
 
   leaflet() |>
     addTiles(
-      carto_basemap_tile_url("voyager_labels_under"),
+      carto_basemap_tile_url("dark_matter"),
       attribution = paste(
         '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
         '&copy; <a href="https://cartodb.com/attributions">CartoDB</a>'
