@@ -106,8 +106,30 @@ See [`docs/ride-summary-report.md`](docs/ride-summary-report.md).
 
 ## Troubleshooting renv
 
-If `render_dashboard.R` reports missing packages after `renv::restore()`, confirm that R is using the project library:
+For ordinary local R startup, leave `RENV_PATHS_LIBRARY` unset. From the
+repository root, the project `.Rprofile` activates renv automatically:
 
 ```sh
-Rscript -e "source('renv/activate.R'); print(.libPaths()); print(requireNamespace('DBI', quietly = TRUE))"
+Rscript -e 'print(.libPaths()); print(requireNamespace("DBI", quietly = TRUE))'
 ```
+
+`RENV_PATHS_LIBRARY` is the **unexpanded library root**. renv appends the
+platform and R-version components. Never reuse a resolved path printed by
+`.libPaths()` as the root: startup can append those components again and
+bootstrap a nested copy of renv. This explains the 17 November 2026
+recurrence with high confidence; the cause of the earlier incident resolved
+on 16 November was not verified.
+
+To run the image-oriented smoke check locally on macOS, from the repository
+root with the project library restored and the normal `output/` directory
+already present:
+
+```sh
+CYCLING_ANALYTICS_OUTPUT_DIR="$PWD/output" RENV_PATHS_LIBRARY="$PWD/renv/library" Rscript tests/smoke_check.R
+```
+
+This is a local structural check. Docker runs the mandatory offline check
+against its own restored library under the unexpanded image root
+`/opt/cycling-analytics-library`. In either case, check the root before
+starting R: an assertion inside the smoke-check script runs after project
+startup and cannot prevent an incorrect bootstrap.
