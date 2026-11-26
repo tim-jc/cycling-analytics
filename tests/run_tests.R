@@ -1105,9 +1105,9 @@ run_test("published effort and cumulative maps use approved dark presentation", 
     cumulative_map$x$calls[[1]]$args[[1]],
     fixed = TRUE
   ))
-  expect_equal(cumulative_line$args[[4]]$color, "#8BA9B7")
-  expect_equal(cumulative_line$args[[4]]$weight, HISTORICAL_ROUTE_WEIGHT)
-  expect_equal(cumulative_line$args[[4]]$opacity, HISTORICAL_ROUTE_OPACITY)
+  expect_equal(cumulative_line$args[[4]]$color, "#B1C2CB")
+  expect_equal(cumulative_line$args[[4]]$weight, 2.5)
+  expect_equal(cumulative_line$args[[4]]$opacity, 0.62)
 })
 
 run_test("summary charts disable only their Plotly modebars", {
@@ -2529,11 +2529,11 @@ run_test("TBR map renders historical and highlighted route presentation", {
     map$x$calls[[1]]$args[[1]],
     fixed = TRUE
   ))
-  expect_equal(colours, c(TBR_HISTORICAL_ROUTE_COLOR, TBR_LATEST_ROUTE_COLOR))
-  expect_equal(weights, c(TBR_HISTORICAL_ROUTE_WEIGHT, TBR_LATEST_ROUTE_WEIGHT))
+  expect_equal(colours, c("#B1C2CB", "#D18B58"))
+  expect_equal(weights, c(2.5, 4.5))
   expect_equal(
     vapply(lines, function(call) call$args[[4]]$opacity, numeric(1)),
-    c(TBR_HISTORICAL_ROUTE_OPACITY, TBR_LATEST_ROUTE_OPACITY)
+    c(0.62, 1)
   )
   expect_true(grepl("tbr-2-", lines[[length(lines)]]$args[[2]], fixed = TRUE))
   expect_true(grepl("Latest mapped adventure", control, fixed = TRUE))

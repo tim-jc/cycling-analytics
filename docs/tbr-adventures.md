@@ -45,14 +45,20 @@ the current local month are marked as future rather than zero-activity months.
 
 ## Adventure map
 
-The map uses the CARTO Dark Matter basemap. Historical routes use a moderately
-visible survey-blue line so the cumulative family-adventure network remains
-readable and repeated routes become more prominent through overplotting. The
-most recent mapped adventure uses a wider copper line, is added last, and
+The map uses MapTiler Streets v4 Dark when configured and CARTO Dark Matter
+otherwise. Historical routes use pale slate (`#B1C2CB`, 2.5 px, 0.62 opacity),
+matching the Historical Activity map. Repeated routes become more prominent
+through overplotting. The most recent mapped adventure uses a wider terracotta
+line (`#D18B58`, 4.5 px, full opacity), is added last, and
 therefore remains visually distinct on top. If the newest
 adventure has no usable GPS, the label says `Latest mapped adventure` and the
 unmapped count remains visible rather than misrepresenting the older route as
 the newest adventure.
+
+The owner accepted this styling on 26 November 2026 after reviewing actual
+TBR history in the complete local dashboard with both MapTiler Streets v4
+Dark and the CARTO Dark Matter fallback. This records local acceptance,
+not production delivery.
 
 The initial viewport fits that latest mapped adventure rather than the complete
 history. Map controls provide `Latest`, automatically discovered locality

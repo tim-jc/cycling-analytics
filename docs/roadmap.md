@@ -5,9 +5,9 @@
 **Operational state:** Slice 2J deployed and published on 26 November 2026,
 as confirmed by the owner. Activity Inspector remains local-only.
 
-**Current delivery workstream:** None; Slice 2J closed
+**Current delivery workstream:** None; Slice 2K accepted locally, production delivery pending separate authorisation
 
-**Workstream lifecycle state:** Deployed and closed
+**Workstream lifecycle state:** Slice 2K locally accepted, not deployed
 
 ## Mission
 
@@ -84,10 +84,22 @@ are accepted. All 157 regression tests, the repository smoke check and
 - **Shared MapTiler key:** quota exhaustion, abuse or key rotation can affect
   both Analytics and Explorer. See the [runtime contract](runtime-contract.md#shared-key-and-usage).
 
+## Slice 2K — Dark Map Route Legibility
+
+Owner-accepted on 26 November 2026. The owner independently reviewed complete
+local dashboard renders with MapTiler Streets v4 Dark and CARTO Dark Matter;
+all seven visual acceptance criteria passed. This closes the route overlay
+contrast backlog item.
+
+Historical Activity and TBR historical routes share pale slate
+(`#B1C2CB`, 2.5 px, 0.62 opacity). TBR's latest mapped route remains
+terracotta (`#D18B58`, 4.5 px, 1.0 opacity); Latest Ride and Best Efforts are
+unchanged. Route geometry, layer ordering, viewport and controls were
+preserved. All 157 regression tests and the local smoke check passed;
+`renv.lock` is unchanged. Production delivery requires separate authorisation.
+
 ## Deferred work
 
-- Review non-terracotta route overlay contrast on MapTiler Streets Dark,
-  particularly historical routes and TBR.
 - Investigate the recurring nested macOS renv library directory.
 - **PCRE match-limit warning — deferred unless it recurs (26 November 2026):**
   The confirmed source is rmarkdown 2.29's HTML image-processing postprocessor.

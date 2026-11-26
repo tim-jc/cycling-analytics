@@ -23,7 +23,8 @@ PLOTLY_AXIS_LINE <- "#8BA9B7"
 PLOTLY_COPPER <- "#D18B58"
 PLOTLY_SURVEY_BLUE <- "#8BA9B7"
 HISTORICAL_ROUTE_WEIGHT <- 2.5
-HISTORICAL_ROUTE_OPACITY <- 0.72
+HISTORICAL_ROUTE_OPACITY <- 0.62
+HISTORICAL_ROUTE_COLOR <- "#B1C2CB"
 
 apply_navigation_instrument_plotly <- function(plot) {
   layout_axis_names <- unique(c(
@@ -1719,7 +1720,7 @@ add_track <- function(
   leaflet_obj,
   position_tbl,
   lat_lng_names = c("latitude", "longitude"),
-  track_colour = PLOTLY_SURVEY_BLUE
+  track_colour = HISTORICAL_ROUTE_COLOR
 ) {
   latitude <- position_tbl[[lat_lng_names[1]]]
   longitude <- position_tbl[[lat_lng_names[2]]]

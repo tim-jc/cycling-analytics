@@ -14,9 +14,6 @@ TBR_FOCUS_LOCALITY_FIELDS <- c(
   "borough", "city_district", "municipality", "town", "city", "county",
   "state_district", "state"
 )
-TBR_HISTORICAL_ROUTE_COLOR <- "#8BA9B7"
-TBR_HISTORICAL_ROUTE_WEIGHT <- 2.5
-TBR_HISTORICAL_ROUTE_OPACITY <- 0.50
 TBR_LATEST_ROUTE_COLOR <- "#D18B58"
 TBR_LATEST_ROUTE_WEIGHT <- 4.5
 TBR_LATEST_ROUTE_OPACITY <- 1
@@ -919,11 +916,11 @@ draw_tbr_adventure_map <- function(
         lng = ~longitude,
         lat = ~latitude,
         color = if (is_latest_mapped) TBR_LATEST_ROUTE_COLOR else
-          TBR_HISTORICAL_ROUTE_COLOR,
+          HISTORICAL_ROUTE_COLOR,
         weight = if (is_latest_mapped) TBR_LATEST_ROUTE_WEIGHT else
-          TBR_HISTORICAL_ROUTE_WEIGHT,
+          HISTORICAL_ROUTE_WEIGHT,
         opacity = if (is_latest_mapped) TBR_LATEST_ROUTE_OPACITY else
-          TBR_HISTORICAL_ROUTE_OPACITY,
+          HISTORICAL_ROUTE_OPACITY,
         popup = popup,
         layerId = paste0("tbr-", activity_id, "-", segment_index)
       )
