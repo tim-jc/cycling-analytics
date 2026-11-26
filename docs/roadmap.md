@@ -89,7 +89,17 @@ are accepted. All 157 regression tests, the repository smoke check and
 - Review non-terracotta route overlay contrast on MapTiler Streets Dark,
   particularly historical routes and TBR.
 - Investigate the recurring nested macOS renv library directory.
-- Investigate the PCRE match-limit warning after successful dashboard renders.
+- **PCRE match-limit warning — deferred unless it recurs (26 November 2026):**
+  The confirmed source is rmarkdown 2.29's HTML image-processing postprocessor.
+  A failed match can skip local image-path rewrites, but no dashboard
+  functionality or publication defect was observed. The exact trigger remains
+  unverified; no evidence establishes MapTiler as the cause. The bounded
+  diagnostic render was inconclusive because database connectivity failed
+  before final HTML processing. The owner accepted no remediation at present.
+  If the warning recurs, record the render stage, versions, basemap mode and
+  artefact size without recording HTML, URLs, credentials or activity data.
+  Seek owner approval for further bounded diagnostics and confirm read-only
+  database connectivity before attempting another diagnostic render.
 
 - Retire Coastal Ride Explorer in a separate bounded cleanup task. Activity
   Inspector is accepted as its functional replacement for boundary discovery,
