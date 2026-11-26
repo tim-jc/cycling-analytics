@@ -2,12 +2,12 @@
 
 **Last reviewed:** 2026-11-26
 
-**Operational state:** Slice 2J deployed and published on 26 November 2026,
+**Operational state:** Slice 2K deployed and published on 26 November 2026,
 as confirmed by the owner. Activity Inspector remains local-only.
 
-**Current delivery workstream:** None; Slice 2K accepted locally, production delivery pending separate authorisation
+**Current delivery workstream:** None; Slice 2K closed
 
-**Workstream lifecycle state:** Slice 2K locally accepted, not deployed
+**Workstream lifecycle state:** Slice 2K deployed and closed
 
 ## Mission
 
@@ -31,8 +31,8 @@ cycling-infrastructure.
 - **Navigation Instrument:** the presentation baseline through Slice 2H is
   committed at `447f559`. The owner accepted Slice 2H on 17 November 2026.
 - **Production publication:** cycling-infrastructure owns deployment and
-  publication. The owner confirmed the Slice 2J production revision as
-  `b16484c6264639ccff62497950610e26590815d5`. Repository
+  publication. The owner confirmed the Slice 2K production revision as
+  `a61fb6b`. Repository
   evidence: [runtime contract](runtime-contract.md).
 
 Owner acceptance above is owner-reported evidence now recorded durably in this
@@ -55,6 +55,7 @@ presentation slice.
 | Navigation Instrument through Slice 2H | Committed application shell, responsive presentation, charts, maps and iOS corrections | Accepted | Owner accepted Slice 2H on 17 November 2026; source committed at `447f559` |
 | Slice 2I visual refinements | Recover summary plotting space, clarify the Best Efforts period and improve historical map legibility | Accepted | Baseline committed at `214b345` |
 | Slice 2J dark cartography | MapTiler Streets v4 Dark across all four dark dashboard maps | Deployed and closed | Owner confirmed publication and all four maps on both production hostnames; see the [production acceptance record](runtime-contract.md#slice-2j-production-acceptance) |
+| Slice 2K route legibility | Pale slate historical routes on Historical Activity and TBR | Deployed and closed | [Production acceptance record](runtime-contract.md#slice-2k-production-acceptance) |
 | Production revision reconciliation | Record the exact accepted SHA deployed and published by infrastructure | Closed | Owner-confirmed revision and production checks recorded in the runtime contract |
 
 ## Active work
@@ -69,8 +70,8 @@ Inspector. The production configuration, deployment and rollback procedures
 are accepted. All 157 regression tests, the repository smoke check and
 `git diff --check` passed.
 
-**Production evidence:** The owner confirmed deployment and publication of
-`b16484c6264639ccff62497950610e26590815d5` and live tiles on both hostnames.
+**Production evidence:** The owner confirmed production refresh, publication
+and visual acceptance of `a61fb6b` at 12:16 UTC on 26 November 2026.
 
 ## Dependencies
 
@@ -96,7 +97,8 @@ Historical Activity and TBR historical routes share pale slate
 terracotta (`#D18B58`, 4.5 px, 1.0 opacity); Latest Ride and Best Efforts are
 unchanged. Route geometry, layer ordering, viewport and controls were
 preserved. All 157 regression tests and the local smoke check passed;
-`renv.lock` is unchanged. Production delivery requires separate authorisation.
+`renv.lock` is unchanged. Production delivery and visual acceptance are
+confirmed in the [runtime contract](runtime-contract.md#slice-2k-production-acceptance).
 
 ## Deferred work
 
@@ -126,13 +128,14 @@ preserved. All 157 regression tests and the local smoke check passed;
 
 ## Next action
 
-**5 January 2027:** Review combined Analytics and Explorer MapTiler usage
+**5 January 2027 at 09:00 UK time:** Review combined Analytics and Explorer MapTiler usage
 for December 2026, the first full production month.
 
 ## Revision history
 
 | Date | Change | Reason / evidence |
 | --- | --- | --- |
+| 2026-11-26 | Slice 2K accepted and closed in production | Owner confirmed refresh, publication and visual acceptance of `a61fb6b`. |
 | 2026-11-26 | Slice 2J accepted and closed in production | Owner confirmed deployment, publication and live tiles on both hostnames. |
 | 2026-11-17 | Recorded Slice 2H acceptance and opened Slice 2I visual refinements | Owner accepted Slice 2H; Slice 2I remains awaiting visual acceptance |
 | 2026-11-14 | Initial durable roadmap and accepted-feature reconciliation | Owner confirmed Activity Inspector acceptance and TBR acceptance dated 9 November 2026; current Git and operational evidence reconciled without making a deployment claim |

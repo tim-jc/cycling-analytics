@@ -110,7 +110,7 @@ allows 100,000 API requests and 5,000 sessions monthly, with one active key.
 November usage then was 4,413 vector requests plus 1,040 raster requests
 (5,453 total, zero sessions); provider projection was 15,068 requests.
 Review combined Explorer and Analytics consumption for December 2026, the
-first full production month, on 5 January 2027. Compare vector and raster
+first full production month, on 5 January 2027 at 09:00 UK time. Compare vector and raster
 requests and sessions with the shared plan limits.
 
 The owner-approved allowlist includes localhost, 127.0.0.1, 192.168.1.87 and
@@ -129,6 +129,24 @@ Compose validation passed. The permanent MapTiler variable was verified
 inside the render container without exposing its value. The production
 refresh and publication succeeded, and the owner validated all four dark
 dashboard maps on both production hostnames. Slice 2J is closed.
+
+### Slice 2K production acceptance
+
+On 26 November 2026, the deployment record for `a61fb6b`
+(`feat: improve dark map route legibility`) showed the Docker image build,
+mandatory offline smoke test and Compose configuration validation passing.
+Deployment readiness was established at 11:56:20 UTC. The owner confirmed
+successful production refresh, publication and visual acceptance at 12:16 UTC.
+Refresh schedules were unchanged. Slice 2K is closed.
+
+- Image reference: `cycling-analytics:dev`
+- Image ID: `sha256:6df5104ea780452af4c28a09b2bc3ab3af9808b714a5ccd44eadfc50d37a65e3`
+- Accepted styling: Historical Activity and TBR historical routes use pale
+  slate (`#B1C2CB`, 2.5 px, 0.62 opacity). The TBR terracotta highlight,
+  Latest Ride and Best Efforts are unchanged.
+- Pre-deployment evidence: 157/157 regression tests passed, and the owner
+  independently accepted complete local renders with both MapTiler Streets
+  Dark and CARTO Dark Matter.
 
 ## Output contract
 

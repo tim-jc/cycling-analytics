@@ -57,8 +57,8 @@ the newest adventure.
 
 The owner accepted this styling on 26 November 2026 after reviewing actual
 TBR history in the complete local dashboard with both MapTiler Streets v4
-Dark and the CARTO Dark Matter fallback. This records local acceptance,
-not production delivery.
+Dark and the CARTO Dark Matter fallback. The owner subsequently confirmed
+[production acceptance](runtime-contract.md#slice-2k-production-acceptance).
 
 The initial viewport fits that latest mapped adventure rather than the complete
 history. Map controls provide `Latest`, automatically discovered locality
