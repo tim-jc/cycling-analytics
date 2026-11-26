@@ -419,14 +419,7 @@ draw_latest_ride_map <- function(streams, sport_type = NA_character_) {
   }
 
   map <- leaflet::leaflet(route$points) |>
-    leaflet::addTiles(
-      carto_basemap_tile_url("dark_matter"),
-      attribution = paste(
-        '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
-        '&copy; <a href="https://carto.com/attributions">CARTO</a>'
-      )
-    )
-
+    add_dashboard_dark_basemap()
   for (segment in route$line_segments) {
     map <- leaflet::addPolylines(
       map,

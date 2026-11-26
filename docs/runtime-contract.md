@@ -62,6 +62,64 @@ selection does not depend on the database server's current date.
 The application does not require a particular regional locale. Runtime
 orchestration provides a valid UTF-8 locale for the container.
 
+## Dark dashboard basemaps
+
+`CYCLING_ANALYTICS_MAPTILER_KEY` selects MapTiler Streets v4 Dark for
+Latest Ride, Best Efforts, historical routes and TBR. Blank or absent
+configuration selects CARTO Dark Matter. Keep the existing CARTO key for
+rollback and for Activity Inspector, which stays on light CARTO Positron.
+
+Locally, set the permanent variable in the ignored project `.Renviron` or
+the render process environment, replacing the former trial setting. Serve
+the generated dashboard over HTTP on an allowed host, not via `file://`.
+The browser key is visible in the generated HTML; do not commit credentials
+or rendered artefacts.
+
+On `cycling-prod`, after release approval, add the permanent variable to
+the existing owner-only `/srv/cycling/config/analytics/runtime.Renviron`
+(or the effective analytics Compose env file if overridden). This is a
+Compose `env_file`, not a file mounted into the application. Do not add it
+to the image, change file permissions or print interpolated Compose config.
+From `/home/tim/cycling-infrastructure`, deploy the approved revision using
+`./scripts/deploy_analytics.sh --ref <approved-commit-sha>`, then check
+what the render service receives without displaying the value:
+
+```sh
+./scripts/compose.sh run --rm cycling-analytics Rscript -e 'if (!nzchar(trimws(Sys.getenv("CYCLING_ANALYTICS_MAPTILER_KEY")))) stop("MapTiler key is absent or blank", call. = FALSE); cat("MapTiler key configured\n")'
+./scripts/run_analytics_refresh.sh
+```
+
+The refresh wrapper uses the same service for scheduled and manual runs and
+validates the static artefact before publishing. In Safari, open both
+`https://cycling-analytics-8bs.pages.dev` and `https://cycling.pastthegrid.uk`.
+On each, check live imagery and credits on all four map surfaces and confirm
+successful raster tile requests in the Network inspector. Do not share full
+request URLs. Render and publication success alone do not prove browser tile
+retrieval. A rejected key, origin or exhausted quota does not trigger a
+browser-side fallback.
+
+To roll back, remove the MapTiler entry or set it blank in the effective
+runtime env file, leave the CARTO key configured, and rerun
+`./scripts/run_analytics_refresh.sh`. Verify both hostnames show CARTO tiles.
+No rebuild is needed for a configuration-only rollback.
+
+### Shared key and usage
+
+Owner-confirmed on 26 November 2026: the free personal/non-commercial plan
+allows 100,000 API requests and 5,000 sessions monthly, with one active key.
+November usage then was 4,413 vector requests plus 1,040 raster requests
+(5,453 total, zero sessions); provider projection was 15,068 requests.
+Review combined Explorer and Analytics consumption after the first full
+production month.
+
+The owner-approved allowlist includes localhost, 127.0.0.1, 192.168.1.87 and
+both production hostnames above. Retaining local origins is a deliberate
+single-key compromise: localhost is not unique to the owner, and abuse can
+consume the shared allowance. Quota exhaustion, revocation or key rotation
+can affect both applications; coordinate changes and verify both apps
+after rotating. No account settings or production configuration are changed
+by this slice.
+
 ## Output contract
 
 The application artefact is a complete, publication-neutral static-site

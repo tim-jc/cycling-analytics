@@ -1029,9 +1029,12 @@ run_test("CARTO tile URL supports the Dark Matter basemap", {
 })
 
 run_test("published effort and cumulative maps use approved dark presentation", {
-  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+  withr::local_envvar(
+    CARTO_BASEMAP_API_KEY = "test-carto-key",
+    CYCLING_ANALYTICS_MAPTILER_KEY = " "
+  )
 
-  effort_map <- draw_best_effort_map(
+  build_effort_map <- function() draw_best_effort_map(
     tibble::tibble(
       duration_seconds = c(300, 300),
       latitude = c(51.5, 51.51),
@@ -1046,6 +1049,20 @@ run_test("published effort and cumulative maps use approved dark presentation", 
     ),
     300
   )
+  effort_map <- build_effort_map()
+  trial_map <- withr::with_envvar(
+    c(CYCLING_ANALYTICS_MAPTILER_KEY = "test+key"),
+    build_effort_map()
+  )
+  trial_tiles <- trial_map$x$calls[[1]]$args
+  expect_equal(
+    trial_tiles[[1]],
+    "https://api.maptiler.com/maps/streets-v4-dark/256/{z}/{x}/{y}.png?key=test%2Bkey"
+  )
+  expect_true(grepl("resources/logo.svg", trial_tiles[[4]]$attribution, fixed = TRUE))
+  expect_true(grepl("openstreetmap.org/copyright", trial_tiles[[4]]$attribution, fixed = TRUE))
+  expect_equal(trial_map$x$calls[-1], effort_map$x$calls[-1])
+  expect_equal(trial_map$x$limits, effort_map$x$limits)
   effort_methods <- vapply(
     effort_map$x$calls,
     `[[`,
@@ -3203,6 +3220,40 @@ run_test("coaching effort elevation scale is local to the lap", {
   y_range <- ggplot2::ggplot_build(plot)$layout$panel_params[[1]]$y.range
 
   expect_true(y_range[[1]] > 100)
+})
+
+run_test("every dashboard dark map changes only its tile URL and attribution", {
+  withr::local_envvar(CARTO_BASEMAP_API_KEY = "test-carto-key")
+  render_maps <- function(key) withr::with_envvar(
+    c(CYCLING_ANALYTICS_MAPTILER_KEY = key),
+    {
+      streams <- tbr_stream_fixture("1")
+      list(
+        latest = draw_latest_ride_map(latest_ride_route_fixture(), "Ride"),
+        history = draw_map(streams),
+        tbr = draw_tbr_adventure_map(
+          tbr_activity_fixture(1), streams, geocode_focus_labels = FALSE
+        )
+      )
+    }
+  )
+  baseline <- render_maps(NA_character_)
+  trial <- render_maps("test-maptiler-key")
+  for (name in names(baseline)) {
+    before <- baseline[[name]]
+    after <- trial[[name]]
+    expect_true(grepl("rastertiles/dark_all", before$x$calls[[1]]$args[[1]], fixed = TRUE))
+    expect_true(grepl("streets-v4-dark", after$x$calls[[1]]$args[[1]], fixed = TRUE))
+    attribution <- after$x$calls[[1]]$args[[4]]$attribution
+    expect_true(all(vapply(
+      c("resources/logo.svg", "maptiler.com/copyright/", "openstreetmap.org/copyright"),
+      function(link) grepl(link, attribution, fixed = TRUE),
+      logical(1)
+    )))
+    expect_equal(after$x$calls[-1], before$x$calls[-1])
+    expect_equal(after$x$limits, before$x$limits)
+    expect_equal(after$jsHooks, before$jsHooks)
+  }
 })
 
 cat(sprintf("\n%d tests passed.\n", tests_run))

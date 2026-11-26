@@ -39,6 +39,11 @@ configuration; do not add it to the Dockerfile or image.
 
 Optional dashboard settings:
 
+Set `CYCLING_ANALYTICS_MAPTILER_KEY` in the ignored local `.Renviron` to
+use MapTiler Streets v4 Dark on all four dark dashboard maps. An absent or
+blank value selects CARTO Dark Matter. Activity Inspector stays on CARTO
+Positron. See the [production configuration and verification procedure](docs/runtime-contract.md#dark-dashboard-basemaps).
+
 ```sh
 ANNUAL_DISTANCE_GOAL_MI=6000
 ```

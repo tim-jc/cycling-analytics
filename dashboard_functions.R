@@ -172,6 +172,33 @@ carto_basemap_tile_url <- function(style) {
   )
 }
 
+# Shared by the published dashboard's dark maps only.
+add_dashboard_dark_basemap <- function(map) {
+  maptiler_key <- trimws(Sys.getenv("CYCLING_ANALYTICS_MAPTILER_KEY"))
+  tiles <- if (nzchar(maptiler_key)) {
+    list(
+      url = paste0(
+        "https://api.maptiler.com/maps/streets-v4-dark/256/{z}/{x}/{y}.png?key=",
+        utils::URLencode(maptiler_key, reserved = TRUE)
+      ),
+      attribution = paste(
+        '<a href="https://www.maptiler.com/"><img src="https://api.maptiler.com/resources/logo.svg" alt="MapTiler" width="62"></a>',
+        '&copy; <a href="https://www.maptiler.com/copyright/">MapTiler</a>',
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+      )
+    )
+  } else {
+    list(
+      url = carto_basemap_tile_url("dark_matter"),
+      attribution = paste(
+        '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+        '&copy; <a href="https://cartodb.com/attributions">CartoDB</a>'
+      )
+    )
+  }
+  leaflet::addTiles(map, tiles$url, attribution = tiles$attribution)
+}
+
 # Activity-grain input for summaries and statistics. Stream availability must
 # not determine whether an activity contributes to activity-level analytics.
 get_activities <- function(
@@ -1282,13 +1309,7 @@ draw_best_effort_map <- function(
   lng_range <- range(effort_streams$longitude, na.rm = TRUE)
 
   leaflet() |>
-    addTiles(
-      carto_basemap_tile_url("dark_matter"),
-      attribution = paste(
-        '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
-        '&copy; <a href="https://cartodb.com/attributions">CartoDB</a>'
-      )
-    ) |>
+    add_dashboard_dark_basemap() |>
     addPolylines(
       data = effort_streams,
       lat = ~latitude,
@@ -1730,14 +1751,7 @@ draw_map <- function(streams_tbl) {
   }
 
   map <- leaflet() |>
-    addTiles(
-      carto_basemap_tile_url("dark_matter"),
-      attribution = paste(
-        '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
-        '&copy; <a href="https://cartodb.com/attributions">CartoDB</a>'
-      )
-    )
-
+    add_dashboard_dark_basemap()
   tracks <- split(streams_tbl, streams_tbl$activity_id)
 
   map <-

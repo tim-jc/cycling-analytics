@@ -906,14 +906,7 @@ draw_tbr_adventure_map <- function(
   }
 
   map <- leaflet::leaflet() |>
-    leaflet::addTiles(
-      carto_basemap_tile_url("dark_matter"),
-      attribution = paste(
-        '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
-        '&copy; <a href="https://carto.com/attributions">CARTO</a>'
-      )
-    )
-
+    add_dashboard_dark_basemap()
   for (activity_id in names(model$routes)) {
     route <- model$routes[[activity_id]]
     is_latest_mapped <- identical(activity_id, model$latest_mapped_activity_id)
