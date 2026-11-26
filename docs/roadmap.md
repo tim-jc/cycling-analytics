@@ -2,13 +2,12 @@
 
 **Last reviewed:** 2026-11-26
 
-**Operational state:** The batch dashboard has a documented production
-operating model. The currently published production source SHA has not been
-verified. Activity Inspector is intentionally a local-only application.
+**Operational state:** Slice 2J deployed and published on 26 November 2026,
+as confirmed by the owner. Activity Inspector remains local-only.
 
-**Current delivery workstream:** Slice 2J production readiness
+**Current delivery workstream:** None; Slice 2J closed
 
-**Workstream lifecycle state:** Accepted; deployment pending
+**Workstream lifecycle state:** Deployed and closed
 
 ## Mission
 
@@ -32,8 +31,8 @@ cycling-infrastructure.
 - **Navigation Instrument:** the presentation baseline through Slice 2H is
   committed at `447f559`. The owner accepted Slice 2H on 17 November 2026.
 - **Production publication:** cycling-infrastructure owns deployment and
-  publication. The SHA currently deployed and published has not been verified,
-  so no equivalence between production and `447f559` is claimed. Repository
+  publication. The owner confirmed the Slice 2J production revision as
+  `b16484c6264639ccff62497950610e26590815d5`. Repository
   evidence: [runtime contract](runtime-contract.md).
 
 Owner acceptance above is owner-reported evidence now recorded durably in this
@@ -55,12 +54,12 @@ presentation slice.
 | TBR family-adventure baseline | Accepted family journal, temporal summaries, milestones and cumulative map | Accepted | Explicit owner acceptance on 9 November 2026; implementation documented in [TBR family adventures](tbr-adventures.md) |
 | Navigation Instrument through Slice 2H | Committed application shell, responsive presentation, charts, maps and iOS corrections | Accepted | Owner accepted Slice 2H on 17 November 2026; source committed at `447f559` |
 | Slice 2I visual refinements | Recover summary plotting space, clarify the Best Efforts period and improve historical map legibility | Accepted | Baseline committed at `214b345` |
-| Slice 2J dark cartography | MapTiler Streets v4 Dark across all four dark dashboard maps | Accepted | Owner validated all four maps in Safari and accepted the [production runbook](runtime-contract.md#dark-dashboard-basemaps) |
-| Production revision reconciliation | Record the exact accepted SHA deployed and published by infrastructure | Ready | Deployment, refresh and publication evidence naming the Analytics SHA |
+| Slice 2J dark cartography | MapTiler Streets v4 Dark across all four dark dashboard maps | Deployed and closed | Owner confirmed publication and all four maps on both production hostnames; see the [production acceptance record](runtime-contract.md#slice-2j-production-acceptance) |
+| Production revision reconciliation | Record the exact accepted SHA deployed and published by infrastructure | Closed | Owner-confirmed revision and production checks recorded in the runtime contract |
 
 ## Active work
 
-**Current bounded item:** Deploy and verify the accepted Slice 2J revision after separate authorisation.
+**Current bounded item:** None. The December usage review is an operational follow-up.
 
 **Position:** The owner validated all four dark dashboard maps in Safari and
 approved MapTiler Streets v4 Dark for production. Acceptance covers the shared
@@ -70,8 +69,8 @@ Inspector. The production configuration, deployment and rollback procedures
 are accepted. All 157 regression tests, the repository smoke check and
 `git diff --check` passed.
 
-**Outstanding production evidence:** Record the deployed revision, successful
-publication and live tile verification on both production hostnames.
+**Production evidence:** The owner confirmed deployment and publication of
+`b16484c6264639ccff62497950610e26590815d5` and live tiles on both hostnames.
 
 ## Dependencies
 
@@ -82,9 +81,8 @@ publication and live tile verification on both production hostnames.
 
 ## Risks and blockers
 
-- **Unknown published revision:** repository history cannot establish which
-  Analytics SHA currently serves production. Resolve this from infrastructure
-  deployment and publication evidence rather than inference.
+- **Shared MapTiler key:** quota exhaustion, abuse or key rotation can affect
+  both Analytics and Explorer. See the [runtime contract](runtime-contract.md#shared-key-and-usage).
 
 ## Deferred work
 
@@ -106,13 +104,13 @@ publication and live tile verification on both production hostnames.
 
 ## Next action
 
-**Owner: authorise deployment separately, then follow the production runbook
-and verify live tiles on both hostnames.**
+**5 January 2027:** Review combined Analytics and Explorer MapTiler usage
+for December 2026, the first full production month.
 
 ## Revision history
 
 | Date | Change | Reason / evidence |
 | --- | --- | --- |
-| 2026-11-26 | Slice 2J formally accepted | Owner validated all four maps in Safari and accepted production readiness. Deployment and live tile verification remain outstanding. |
+| 2026-11-26 | Slice 2J accepted and closed in production | Owner confirmed deployment, publication and live tiles on both hostnames. |
 | 2026-11-17 | Recorded Slice 2H acceptance and opened Slice 2I visual refinements | Owner accepted Slice 2H; Slice 2I remains awaiting visual acceptance |
 | 2026-11-14 | Initial durable roadmap and accepted-feature reconciliation | Owner confirmed Activity Inspector acceptance and TBR acceptance dated 9 November 2026; current Git and operational evidence reconciled without making a deployment claim |

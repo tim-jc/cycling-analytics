@@ -109,16 +109,26 @@ Owner-confirmed on 26 November 2026: the free personal/non-commercial plan
 allows 100,000 API requests and 5,000 sessions monthly, with one active key.
 November usage then was 4,413 vector requests plus 1,040 raster requests
 (5,453 total, zero sessions); provider projection was 15,068 requests.
-Review combined Explorer and Analytics consumption after the first full
-production month.
+Review combined Explorer and Analytics consumption for December 2026, the
+first full production month, on 5 January 2027. Compare vector and raster
+requests and sessions with the shared plan limits.
 
 The owner-approved allowlist includes localhost, 127.0.0.1, 192.168.1.87 and
 both production hostnames above. Retaining local origins is a deliberate
 single-key compromise: localhost is not unique to the owner, and abuse can
 consume the shared allowance. Quota exhaustion, revocation or key rotation
 can affect both applications; coordinate changes and verify both apps
-after rotating. No account settings or production configuration are changed
-by this slice.
+after rotating.
+
+### Slice 2J production acceptance
+
+On 26 November 2026 the owner confirmed that Analytics revision
+`b16484c6264639ccff62497950610e26590815d5` was pushed and deployed to
+`cycling-prod`. The Docker image build, mandatory offline smoke test and
+Compose validation passed. The permanent MapTiler variable was verified
+inside the render container without exposing its value. The production
+refresh and publication succeeded, and the owner validated all four dark
+dashboard maps on both production hostnames. Slice 2J is closed.
 
 ## Output contract
 
